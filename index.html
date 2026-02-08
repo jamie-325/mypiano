@@ -1,125 +1,118 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Quest Hand Tracking Piano</title>
+  <title>Real Piano 88 Keys - VR Movement</title>
+
   <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
+  
   <script src="https://cdn.jsdelivr.net/gh/donmccurdy/aframe-extras@v7.2.0/dist/aframe-extras.min.js"></script>
+
   <script src="https://surikov.github.io/webaudiofont/npm/dist/WebAudioFontPlayer.js"></script>
   <script src="https://surikov.github.io/webaudiofontdata/sound/0000_Aspirin_sf2_file.js"></script>
 </head>
 
 <body>
-  <a-scene 
-    webxr="requiredFeatures: hand-tracking, local-floor; referenceSpaceType: local-floor"
-    vr-mode-ui="enabled: true">
+  <a-scene webxr="requiredFeatures: local-floor">
 
-    <a-entity id="rig" movement-controls="fly: false; speed: 0.1">
-      <a-camera position="0 1.6 0" look-controls="pointerLockEnabled: true"></a-camera>
-      
+    <a-entity id="rig" movement-controls="fly: false; speed: 0.15" position="0 0 1">
+      <a-camera position="0 1.6 0" look-controls>
+        <a-cursor raycaster="objects: [piano-key]"></a-cursor>
+      </a-camera>
+
       <a-entity oculus-touch-controls="hand: left"></a-entity>
-      <a-entity oculus-touch-controls="hand: right"></a-entity>
-
-      <a-entity id="leftHand" hand-tracking-controls="hand: left"></a-entity>
-      <a-entity id="rightHand" hand-tracking-controls="hand: right"></a-entity>
+      <a-entity oculus-touch-controls="hand: right" raycaster="objects: [piano-key]; showLine: true"></a-entity>
     </a-entity>
 
-    <a-entity id="piano" position="0 0.8 -0.5"></a-entity>
+    <a-entity id="piano" position="-2.5 0.8 -0.5"></a-entity>
 
-    <a-sphere id="leftTip" radius="0.01" color="red" visible="true"></a-sphere>
-    <a-sphere id="rightTip" radius="0.01" color="blue" visible="true"></a-sphere>
+    <a-grid></a-grid>
 
   </a-scene>
 
   <script>
-    // --- AUDIO SETUP ---
+    // ----------- REAL PIANO AUDIO SETUP -----------
     const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
     const player = new WebAudioFontPlayer();
     const pianoInstrument = _tone_0000_Aspirin_sf2_file;
     player.loader.decodeAfterLoading(audioCtx, '_tone_0000_Aspirin_sf2_file');
 
-    function playNote(midi) {
+    function playRealPiano(midiNote) {
+      // Resume audio context in case browser blocked it
       if (audioCtx.state === 'suspended') audioCtx.resume();
-      player.queueWaveTable(audioCtx, audioCtx.destination, pianoInstrument, audioCtx.currentTime, midi, 1.0);
+      
+      player.queueWaveTable(audioCtx, audioCtx.destination, pianoInstrument, audioCtx.currentTime, midiNote, 1.5);
     }
 
-    // --- JOINT TRACKING ---
-    function updateFingertips() {
-      const hands = {'#leftHand': '#leftTip', '#rightHand': '#rightTip'};
-
-      for (let handId in hands) {
-        const handEl = document.querySelector(handId);
-        const tipEl = document.querySelector(hands[handId]);
-        
-        if (handEl.components['hand-tracking-controls']) {
-          const joints = handEl.components['hand-tracking-controls'].joints;
-          if (joints && joints['index-finger-tip']) {
-            // Match the red/blue spheres to your real index finger tips
-            tipEl.object3D.position.copy(joints['index-finger-tip'].position);
-          }
-        }
-      }
-      requestAnimationFrame(updateFingertips);
-    }
-
-    // --- INTERACTIVE KEY COMPONENT ---
-    AFRAME.registerComponent('ar-piano-key', {
-      schema: { midi: { default: 60 }, color: { default: 'white' } },
-      init: function () {
-        this.originalColor = this.data.color;
-        this.playing = false;
-        this.worldPos = new THREE.Vector3();
+    // ----------- PIANO KEY COMPONENT -----------
+    AFRAME.registerComponent('piano-key', {
+      schema: {
+        color: { default: 'white' },
+        midi: { default: 60 }
       },
-      tick: function () {
-        const leftTip = document.querySelector('#leftTip').object3D.position;
-        const rightTip = document.querySelector('#rightTip').object3D.position;
-        
-        // Check collision in world space so movement doesn't break detection
-        this.el.object3D.getWorldPosition(this.worldPos);
+      init: function () {
+        const el = this.el;
+        const originalColor = this.data.color;
+        const midiNote = this.data.midi;
 
-        const distL = this.worldPos.distanceTo(leftTip);
-        const distR = this.worldPos.distanceTo(rightTip);
-
-        const isTouching = distL < 0.04 || distR < 0.04;
-
-        if (isTouching && !this.playing) {
-          this.playing = true;
-          this.el.setAttribute('color', '#00FF00');
-          this.el.object3D.position.y -= 0.01; // Key press animation
-          playNote(this.data.midi);
-        } else if (!isTouching && this.playing) {
-          this.playing = false;
-          this.el.setAttribute('color', this.originalColor);
-          this.el.object3D.position.y += 0.01; // Key release
-        }
+        el.addEventListener('mousedown', () => { // Using mousedown for faster response
+          el.setAttribute('color', 'yellow');
+          playRealPiano(midiNote);
+          setTimeout(() => {
+            el.setAttribute('color', originalColor);
+          }, 150);
+        });
       }
     });
 
-    // --- GENERATE PIANO ---
+    // ----------- BUILD FULL 88-KEY PIANO -----------
     function createPiano() {
       const piano = document.querySelector('#piano');
-      const whiteKeyWidth = 0.025;
-      const keysCount = 24; 
-      let midi = 60; // Starting at Middle C
+      const whiteKeyWidth = 0.1;
+      const whiteKeyHeight = 0.05;
+      const whiteKeyDepth = 0.4;
+      const blackKeyWidth = 0.06;
+      const blackKeyHeight = 0.08;
+      const blackKeyDepth = 0.25;
+      const blackKeyPattern = [1, 1, 0, 1, 1, 1, 0];
+      const whiteKeyCount = 52;
 
-      for (let i = 0; i < keysCount; i++) {
+      let currentMidi = 21; 
+
+      for (let i = 0; i < whiteKeyCount; i++) {
         let key = document.createElement('a-box');
-        key.setAttribute('width', 0.02);
-        key.setAttribute('height', 0.02);
-        key.setAttribute('depth', 0.15);
-        key.setAttribute('position', `${(i - keysCount/2) * whiteKeyWidth} 0 0`);
+        key.setAttribute('width', whiteKeyWidth);
+        key.setAttribute('height', whiteKeyHeight);
+        key.setAttribute('depth', whiteKeyDepth);
+        key.setAttribute('position', `${i * whiteKeyWidth} 0 0`);
         key.setAttribute('color', 'white');
-        key.setAttribute('ar-piano-key', `midi: ${midi}`);
+        key.setAttribute('piano-key', `color: white; midi: ${currentMidi}`);
+        key.setAttribute('class', 'clickable'); // Added class for raycaster
         piano.appendChild(key);
-        
-        const note = midi % 12;
-        midi += ([4, 11].includes(note)) ? 1 : 2;
+
+        const noteInOctave = currentMidi % 12;
+        currentMidi += ([4, 11].includes(noteInOctave)) ? 1 : 2;
+      }
+
+      currentMidi = 22; 
+      for (let i = 0; i < whiteKeyCount - 1; i++) {
+        let octavePosition = i % 7;
+        if (blackKeyPattern[octavePosition] === 1) {
+          let blackKey = document.createElement('a-box');
+          blackKey.setAttribute('width', blackKeyWidth);
+          blackKey.setAttribute('height', blackKeyHeight);
+          blackKey.setAttribute('depth', blackKeyDepth);
+          blackKey.setAttribute('position', `${(i + 0.75) * whiteKeyWidth} 0.03 -0.05`);
+          blackKey.setAttribute('color', 'black');
+          blackKey.setAttribute('piano-key', `color: black; midi: ${currentMidi}`);
+          blackKey.setAttribute('class', 'clickable');
+          piano.appendChild(blackKey);
+        }
+        const noteInOctave = currentMidi % 12;
+        currentMidi += ([1, 3, 6, 8, 10].includes(noteInOctave)) ? 2 : 1;
       }
     }
 
-    window.onload = () => {
-      createPiano();
-      updateFingertips();
-    };
+    window.onload = createPiano;
   </script>
 </body>
 </html>
