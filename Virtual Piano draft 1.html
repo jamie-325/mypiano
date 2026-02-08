@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Real Piano 88 Keys</title>
+
+  <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
+
+  <!-- WebAudioFont for real instrument samples -->
+  <script src="https://surikov.github.io/webaudiofont/npm/dist/WebAudioFontPlayer.js"></script>
+
+  <!-- Acoustic Grand Piano SoundFont -->
+  <script src="https://surikov.github.io/webaudiofontdata/sound/0000_Aspirin_sf2_file.js"></script>
+
+</head>
+
+<body>
+  <a-scene>
+
+    <a-entity id="piano" position="-4 1 -3"></a-entity>
+
+    <a-camera position="0 1.6 1">
+      <a-cursor></a-cursor>
+    </a-camera>
+
+  </a-scene>
+
+  <script>
+    // ----------- REAL PIANO AUDIO SETUP -----------
+
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    const player = new WebAudioFontPlayer();
+
+    // This object comes from the Aspirin soundfont script
+    const pianoInstrument = _tone_0000_Aspirin_sf2_file;
+
+    player.loader.decodeAfterLoading(audioCtx, '_tone_0000_Aspirin_sf2_file');
+
+    function playRealPiano(midiNote) {
+      player.queueWaveTable(
+        audioCtx,
+        audioCtx.destination,
+        pianoInstrument,
+        audioCtx.currentTime,
+        midiNote,
+        1.5   // note duration
+      );
+    }
+
+    // ----------- PIANO KEY COMPONENT -----------
+
+    AFRAME.registerComponent('piano-key', {
+      schema: {
+        color: { default: 'white' },
+        midi: { default: 60 }
+      },
+
+      init: function () {
+        const el = this.el;
+        const originalColor = this.data.color;
+        const midiNote = this.data.midi;
+
+        el.addEventListener('click', () => {
+          el.setAttribute('color', 'yellow');
+
+          playRealPiano(midiNote);
+
+          setTimeout(() => {
+            el.setAttribute('color', originalColor);
+          }, 150);
+        });
+      }
+    });
+
+    // ----------- BUILD FULL 88-KEY PIANO -----------
+
+    function createPiano() {
+      const piano = document.querySelector('#piano');
+
+      const whiteKeyWidth = 0.1;
+      const whiteKeyHeight = 0.05;
+      const whiteKeyDepth = 0.4;
+
+      const blackKeyWidth = 0.06;
+      const blackKeyHeight = 0.08;
+      const blackKeyDepth = 0.25;
+
+      const blackKeyPattern = [1, 1, 0, 1, 1, 1, 0];
+
+      const whiteKeyCount = 52;
+
+      let currentMidi = 21; // A0 – first key on real piano
+
+      // CREATE WHITE KEYS
+      for (let i = 0; i < whiteKeyCount; i++) {
+        let key = document.createElement('a-box');
+
+        key.setAttribute('width', whiteKeyWidth);
+        key.setAttribute('height', whiteKeyHeight);
+        key.setAttribute('depth', whiteKeyDepth);
+
+        key.setAttribute(
+          'position',
+          `${i * whiteKeyWidth} 0 0`
+        );
+
+        key.setAttribute('color', 'white');
+
+        key.setAttribute(
+          'piano-key',
+          `color: white; midi: ${currentMidi}`
+        );
+
+        piano.appendChild(key);
+
+        // Advance MIDI note correctly through white keys
+        const noteInOctave = currentMidi % 12;
+
+        if ([4, 11].includes(noteInOctave)) {
+          currentMidi += 1;
+        } else {
+          currentMidi += 2;
+        }
+      }
+
+      // CREATE BLACK KEYS
+      currentMidi = 22; // first black key A#0
+
+      for (let i = 0; i < whiteKeyCount - 1; i++) {
+
+        let octavePosition = i % 7;
+
+        if (blackKeyPattern[octavePosition] === 1) {
+          let blackKey = document.createElement('a-box');
+
+          blackKey.setAttribute('width', blackKeyWidth);
+          blackKey.setAttribute('height', blackKeyHeight);
+          blackKey.setAttribute('depth', blackKeyDepth);
+
+          blackKey.setAttribute(
+            'position',
+            `${(i + 0.75) * whiteKeyWidth} 0.03 -0.05`
+          );
+
+          blackKey.setAttribute('color', 'black');
+
+          blackKey.setAttribute(
+            'piano-key',
+            `color: black; midi: ${currentMidi}`
+          );
+
+          piano.appendChild(blackKey);
+        }
+
+        const noteInOctave = currentMidi % 12;
+
+        if ([1, 3, 6, 8, 10].includes(noteInOctave)) {
+          currentMidi += 2;
+        } else {
+          currentMidi += 1;
+        }
+      }
+    }
+
+    window.onload = createPiano;
+
+  </script>
+
+</body>
+</html>
