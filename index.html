@@ -43,8 +43,8 @@
       player.queueWaveTable(audioCtx, audioCtx.destination, pianoInstrument, audioCtx.currentTime, midiNote, 1.5);
     }
 
-    // ----------- PIANO KEY COMPONENT -----------
-    AFRAME.registerComponent('piano-key', {
+   // ----------- PIANO KEY COMPONENT -----------
+   AFRAME.registerComponent('piano-key', {
       schema: {
         color: { default: 'white' },
         midi: { default: 60 }
@@ -54,7 +54,8 @@
         const originalColor = this.data.color;
         const midiNote = this.data.midi;
 
-        el.addEventListener('mousedown', () => { // Using mousedown for faster response
+        // Use 'mousedown' for faster response on Quest controllers
+        el.addEventListener('mousedown', () => {
           el.setAttribute('color', 'yellow');
           playRealPiano(midiNote);
           setTimeout(() => {
@@ -68,47 +69,48 @@
     function createPiano() {
       const piano = document.querySelector('#piano');
       const whiteKeyWidth = 0.1;
-      const whiteKeyHeight = 0.05;
-      const whiteKeyDepth = 0.4;
-      const blackKeyWidth = 0.06;
-      const blackKeyHeight = 0.08;
-      const blackKeyDepth = 0.25;
-      const blackKeyPattern = [1, 1, 0, 1, 1, 1, 0];
-      const whiteKeyCount = 52;
+      
+      // Starting at MIDI 21 (A0) which is the first key on a standard 88-key piano
+      let midiPointer = 21; 
+      
+      // We will keep track of which MIDI notes are white vs black
+      const whiteNotes = [0, 2, 4, 5, 7, 9, 11]; // C, D, E, F, G, A, B positions
 
-      let currentMidi = 21; 
-
-      for (let i = 0; i < whiteKeyCount; i++) {
+      // 1. CREATE ALL 52 WHITE KEYS
+      for (let i = 0; i < 52; i++) {
         let key = document.createElement('a-box');
-        key.setAttribute('width', whiteKeyWidth);
-        key.setAttribute('height', whiteKeyHeight);
-        key.setAttribute('depth', whiteKeyDepth);
+        key.setAttribute('width', 0.095);
+        key.setAttribute('height', 0.05);
+        key.setAttribute('depth', 0.4);
         key.setAttribute('position', `${i * whiteKeyWidth} 0 0`);
         key.setAttribute('color', 'white');
-        key.setAttribute('piano-key', `color: white; midi: ${currentMidi}`);
-        key.setAttribute('class', 'clickable'); // Added class for raycaster
+        
+        // Find the next available white note MIDI number
+        while (!whiteNotes.includes(midiPointer % 12)) {
+          midiPointer++;
+        }
+        
+        key.setAttribute('piano-key', `color: white; midi: ${midiPointer}`);
+        key.setAttribute('class', 'clickable');
         piano.appendChild(key);
-
-        const noteInOctave = currentMidi % 12;
-        currentMidi += ([4, 11].includes(noteInOctave)) ? 1 : 2;
-      }
-
-      currentMidi = 22; 
-      for (let i = 0; i < whiteKeyCount - 1; i++) {
-        let octavePosition = i % 7;
-        if (blackKeyPattern[octavePosition] === 1) {
+        
+        // 2. CREATE BLACK KEY (if one exists after this white key)
+        // Black keys do not exist after E (index 4) and B (index 11)
+        let noteInOctave = midiPointer % 12;
+        if (noteInOctave !== 4 && noteInOctave !== 11 && i < 51) {
           let blackKey = document.createElement('a-box');
-          blackKey.setAttribute('width', blackKeyWidth);
-          blackKey.setAttribute('height', blackKeyHeight);
-          blackKey.setAttribute('depth', blackKeyDepth);
-          blackKey.setAttribute('position', `${(i + 0.75) * whiteKeyWidth} 0.03 -0.05`);
+          blackKey.setAttribute('width', 0.06);
+          blackKey.setAttribute('height', 0.08);
+          blackKey.setAttribute('depth', 0.25);
+          // Position it between this white key and the next one
+          blackKey.setAttribute('position', `${(i * whiteKeyWidth) + (whiteKeyWidth / 2)} 0.03 -0.1`);
           blackKey.setAttribute('color', 'black');
-          blackKey.setAttribute('piano-key', `color: black; midi: ${currentMidi}`);
+          blackKey.setAttribute('piano-key', `color: black; midi: ${midiPointer + 1}`);
           blackKey.setAttribute('class', 'clickable');
           piano.appendChild(blackKey);
         }
-        const noteInOctave = currentMidi % 12;
-        currentMidi += ([1, 3, 6, 8, 10].includes(noteInOctave)) ? 2 : 1;
+
+        midiPointer++; // Move to next note for the next iteration
       }
     }
 
