@@ -1,172 +1,217 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Calibratable AR Piano with MIDI</title>
+  <title>VR Piano Calibration</title>
+
   <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/webmidi@3.1.6/dist/iife/webmidi.iife.js"></script>
 </head>
 
 <body>
+
 <script>
-// ---------- MIDI HANDLER ----------
-AFRAME.registerComponent('midi-handler', {
-  init: function () {
-    WebMidi.enable().then(() => {
-      console.log("WebMidi enabled!");
-      
-      WebMidi.inputs.forEach(input => {
-        console.log("Connected to: ", input.name);
-        
-        input.addListener("noteon", e => {
-          // MIDI 21 is A0 (first key on 88-key piano)
-          const noteIndex = e.note.number - 21;
-          const keyEntity = document.querySelector(`[note="${noteIndex}"]`);
-          
-          if (keyEntity) {
-            keyEntity.emit('midi-play');
-            keyEntity.setAttribute('material', 'emissive', '#ff0000');
-            keyEntity.setAttribute('material', 'emissiveIntensity', '0.5');
-          }
-        });
 
-        input.addListener("noteoff", e => {
-          const noteIndex = e.note.number - 21;
-          const keyEntity = document.querySelector(`[note="${noteIndex}"]`);
-          if (keyEntity) {
-            keyEntity.setAttribute('material', 'emissiveIntensity', '0');
-          }
-        });
-      });
-    }).catch(err => console.warn("MIDI Error or Not Supported:", err));
-  }
-});
+// -------- CALIBRATION SYSTEM --------
 
-// ---------- CALIBRATION CONTROLS ----------
-AFRAME.registerComponent('calibration-controls', {
+AFRAME.registerComponent('vr-calibrator', {
   init: function () {
-    const el = this.el;
+
+    const piano = document.querySelector("#pianoRoot");
+
     let data = JSON.parse(localStorage.getItem("pianoCalibration"));
 
     if (data) {
-      el.setAttribute("position", data.position);
-      el.setAttribute("rotation", data.rotation);
-      el.setAttribute("scale", data.scale);
+      piano.setAttribute("position", data.position);
+      piano.setAttribute("rotation", data.rotation);
+      piano.setAttribute("scale", data.scale);
     }
 
-    window.addEventListener("keydown", (e) => {
-      let pos = el.getAttribute("position");
-      let rot = el.getAttribute("rotation");
-      let scale = el.getAttribute("scale");
-      const step = 0.01;
-      const rotStep = 1;
+    const step = 0.02;
+    const rotStep = 2;
+    const scaleStep = 0.02;
 
-      switch(e.key) {
-        case "ArrowUp":    pos.z -= step; break;
-        case "ArrowDown":  pos.z += step; break;
-        case "ArrowLeft":  pos.x -= step; break;
-        case "ArrowRight": pos.x += step; break;
-        case "w": case "W": pos.y += step; break;
-        case "s": case "S": pos.y -= step; break;
-        case "q": case "Q": rot.y -= rotStep; break;
-        case "e": case "E": rot.y += rotStep; break;
-        case "+": case "=":
-          scale.x += 0.01; scale.y += 0.01; scale.z += 0.01;
-          break;
-        case "-":
-          scale.x -= 0.01; scale.y -= 0.01; scale.z -= 0.01;
-          break;
-        case "p": case "P":
-          localStorage.setItem("pianoCalibration", JSON.stringify({
-            position: pos, rotation: rot, scale: scale
-          }));
-          alert("Calibration Saved!");
-          break;
-      }
-      el.setAttribute("position", pos);
-      el.setAttribute("rotation", rot);
-      el.setAttribute("scale", scale);
-    });
-  }
-});
+    function save() {
+      localStorage.setItem("pianoCalibration", JSON.stringify({
+        position: piano.getAttribute("position"),
+        rotation: piano.getAttribute("rotation"),
+        scale: piano.getAttribute("scale")
+      }));
 
-// ---------- PIANO GENERATOR ----------
-AFRAME.registerComponent('piano-generator', {
-  init: function () {
-    const piano = this.el;
-    const whiteKeyWidth = 0.022;
-    const blackKeyWidth = 0.014;
-    let whiteIndex = 0;
-    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      alert("Calibration Saved!");
+    }
 
-    const generateFrequencies = () => {
-      let freqs = [];
-      for (let i = 0; i < 88; i++) freqs.push(27.5 * Math.pow(2, i / 12));
-      return freqs;
+    // Button actions
+
+    window.calibrate = {
+
+      left: () => move(-step, 0, 0),
+      right: () => move(step, 0, 0),
+
+      forward: () => move(0, 0, -step),
+      back: () => move(0, 0, step),
+
+      up: () => move(0, step, 0),
+      down: () => move(0, -step, 0),
+
+      rotateLeft: () => rotate(-rotStep),
+      rotateRight: () => rotate(rotStep),
+
+      scaleUp: () => scale(scaleStep),
+      scaleDown: () => scale(-scaleStep),
+
+      save: save
     };
-    const frequencies = generateFrequencies();
-    const isBlackKey = (i) => [1, 1, 0, 1, 1, 1, 0][i % 7] === 1;
 
-    for (let i = 0; i < 88; i++) {
-      let isBlack = isBlackKey(i);
-      let key = document.createElement("a-box");
-      
-      key.setAttribute("height", isBlack ? 0.05 : 0.1);
-      key.setAttribute("depth", isBlack ? 0.1 : 0.14);
-      key.setAttribute("width", isBlack ? blackKeyWidth : whiteKeyWidth);
-      key.setAttribute("color", isBlack ? "black" : "white");
-      key.setAttribute("note", i); // Custom attribute for MIDI lookup
+    function move(x, y, z) {
+      let p = piano.getAttribute("position");
+      piano.setAttribute("position", {
+        x: p.x + x,
+        y: p.y + y,
+        z: p.z + z
+      });
+    }
 
-      let x = isBlack ? (whiteIndex - 0.5) * whiteKeyWidth : whiteIndex * whiteKeyWidth;
-      if (!isBlack) whiteIndex++;
+    function rotate(yaw) {
+      let r = piano.getAttribute("rotation");
+      piano.setAttribute("rotation", {
+        x: r.x,
+        y: r.y + yaw,
+        z: r.z
+      });
+    }
 
-      key.setAttribute("position", `${x} 0 0`);
-
-      const playNote = () => {
-        if (audioCtx.state === 'suspended') audioCtx.resume();
-        let osc = audioCtx.createOscillator();
-        let gain = audioCtx.createGain();
-        osc.type = "sine";
-        osc.frequency.value = frequencies[i];
-        osc.connect(gain);
-        gain.connect(audioCtx.destination);
-        osc.start();
-        gain.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + 1);
-        setTimeout(() => osc.stop(), 1000);
-      };
-
-      key.addEventListener("click", playNote);
-      key.addEventListener("midi-play", playNote);
-      
-      piano.appendChild(key);
+    function scale(amount) {
+      let s = piano.getAttribute("scale");
+      piano.setAttribute("scale", {
+        x: s.x + amount,
+        y: s.y + amount,
+        z: s.z + amount
+      });
     }
   }
 });
+
+
+// -------- SIMPLE PIANO --------
+
+AFRAME.registerComponent('simple-piano', {
+  init: function () {
+
+    const root = this.el;
+
+    const whiteKeyWidth = 0.022;
+
+    let whiteIndex = 0;
+
+    for (let i = 0; i < 52; i++) {
+
+      let key = document.createElement("a-box");
+
+      key.setAttribute("width", whiteKeyWidth);
+      key.setAttribute("height", 0.1);
+      key.setAttribute("depth", 0.15);
+      key.setAttribute("color", "white");
+
+      key.setAttribute(
+        "position",
+        `${whiteIndex * whiteKeyWidth} 1.2 -1`
+      );
+
+      whiteIndex++;
+
+      root.appendChild(key);
+    }
+  }
+});
+
+
+// -------- BUTTON COMPONENT --------
+
+AFRAME.registerComponent('ui-button', {
+  schema: {
+    action: {type: 'string'}
+  },
+
+  init: function () {
+
+    this.el.addEventListener("click", () => {
+      const action = this.data.action;
+      window.calibrate[action]();
+    });
+
+    this.el.setAttribute("class", "clickable");
+  }
+});
+
 </script>
 
-<a-scene midi-handler xr-mode-ui="enabled: true">
-  <a-camera position="0 1.6 0" wasd-controls-enabled="false">
-    <a-cursor color="yellow" raycaster="objects: a-box"></a-cursor>
-  </a-camera>
+<a-scene vr-calibrator>
 
-  <a-entity id="pianoRoot"
-            position="0 1.2 -1"
-            calibration-controls
-            piano-generator>
+  <!-- Controllers -->
+  <a-entity laser-controls="hand: right" raycaster="objects: .clickable"></a-entity>
+  <a-entity laser-controls="hand: left" raycaster="objects: .clickable"></a-entity>
+
+  <a-camera position="0 1.6 0"></a-camera>
+
+  <!-- Piano -->
+  <a-entity id="pianoRoot" simple-piano></a-entity>
+
+  <!-- Calibration Panel -->
+
+  <a-entity position="0 1.5 -0.8">
+
+    <a-text value="PIANO CALIBRATION"
+            position="-0.3 0.3 0"
+            color="yellow"></a-text>
+
+    <!-- Movement -->
+
+    <a-box ui-button="action:left" position="-0.3 0 0"
+           color="red" depth="0.05" height="0.1" width="0.1"></a-box>
+
+    <a-box ui-button="action:right" position="-0.1 0 0"
+           color="red" depth="0.05" height="0.1" width="0.1"></a-box>
+
+    <a-box ui-button="action:forward" position="0.1 0 0"
+           color="blue" depth="0.05" height="0.1" width="0.1"></a-box>
+
+    <a-box ui-button="action:back" position="0.3 0 0"
+           color="blue" depth="0.05" height="0.1" width="0.1"></a-box>
+
+    <!-- Up Down -->
+
+    <a-box ui-button="action:up" position="-0.3 -0.15 0"
+           color="green" depth="0.05" height="0.1" width="0.1"></a-box>
+
+    <a-box ui-button="action:down" position="-0.1 -0.15 0"
+           color="green" depth="0.05" height="0.1" width="0.1"></a-box>
+
+    <!-- Rotate -->
+
+    <a-box ui-button="action:rotateLeft" position="0.1 -0.15 0"
+           color="purple" depth="0.05" height="0.1" width="0.1"></a-box>
+
+    <a-box ui-button="action:rotateRight" position="0.3 -0.15 0"
+           color="purple" depth="0.05" height="0.1" width="0.1"></a-box>
+
+    <!-- Scale -->
+
+    <a-box ui-button="action:scaleUp" position="-0.3 -0.3 0"
+           color="orange" depth="0.05" height="0.1" width="0.1"></a-box>
+
+    <a-box ui-button="action:scaleDown" position="-0.1 -0.3 0"
+           color="orange" depth="0.05" height="0.1" width="0.1"></a-box>
+
+    <!-- Save -->
+
+    <a-box ui-button="action:save" position="0.3 -0.3 0"
+           color="yellow" depth="0.05" height="0.1" width="0.2"></a-box>
+
+    <a-text value="SAVE"
+            position="0.26 -0.3 0.04"
+            color="black"></a-text>
+
   </a-entity>
 
-  <a-text
-    value="Calibration Controls:
-Arrows = Move (X/Z)
-W/S = Up/Down (Y)
-Q/E = Rotate
-+/- = Scale
-P = Save"
-    position="-0.8 2 -1.5"
-    color="yellow"
-    width="3">
-  </a-text>
-
-  <a-sky color="#222"></a-sky>
 </a-scene>
 
 </body>
