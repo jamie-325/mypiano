@@ -1,218 +1,162 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>VR Piano Calibration</title>
-
-  <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
+    <title>Quest VR Piano - Pro Calibration</title>
+    <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
+    <script src="https://surikov.github.io/webaudiofont/npm/dist/WebAudioFontPlayer.js"></script>
+    <script src="https://surikov.github.io/webaudiofontdata/sound/0000_Aspirin_sf2_file.js"></script>
+    <style>
+        #ui {
+            position: absolute; z-index: 999; top: 20px; left: 20px;
+            background: rgba(0,0,0,0.9); color: white; padding: 20px;
+            font-family: sans-serif; border-radius: 10px; width: 250px;
+        }
+        button { background: #444; color: white; border: 1px solid #777; padding: 10px; width: 100%; margin-top: 10px; cursor: pointer;}
+        button:hover { background: #666; }
+        .step { color: #0f0; font-weight: bold; }
+    </style>
 </head>
-
 <body>
 
-<script>
-
-// -------- CALIBRATION SYSTEM --------
-
-AFRAME.registerComponent('vr-calibrator', {
-  init: function () {
-
-    const piano = document.querySelector("#pianoRoot");
-
-    let data = JSON.parse(localStorage.getItem("pianoCalibration"));
-
-    if (data) {
-      piano.setAttribute("position", data.position);
-      piano.setAttribute("rotation", data.rotation);
-      piano.setAttribute("scale", data.scale);
-    }
-
-    const step = 0.02;
-    const rotStep = 2;
-    const scaleStep = 0.02;
-
-    function save() {
-      localStorage.setItem("pianoCalibration", JSON.stringify({
-        position: piano.getAttribute("position"),
-        rotation: piano.getAttribute("rotation"),
-        scale: piano.getAttribute("scale")
-      }));
-
-      alert("Calibration Saved!");
-    }
-
-    // Button actions
-
-    window.calibrate = {
-
-      left: () => move(-step, 0, 0),
-      right: () => move(step, 0, 0),
-
-      forward: () => move(0, 0, -step),
-      back: () => move(0, 0, step),
-
-      up: () => move(0, step, 0),
-      down: () => move(0, -step, 0),
-
-      rotateLeft: () => rotate(-rotStep),
-      rotateRight: () => rotate(rotStep),
-
-      scaleUp: () => scale(scaleStep),
-      scaleDown: () => scale(-scaleStep),
-
-      save: save
-    };
-
-    function move(x, y, z) {
-      let p = piano.getAttribute("position");
-      piano.setAttribute("position", {
-        x: p.x + x,
-        y: p.y + y,
-        z: p.z + z
-      });
-    }
-
-    function rotate(yaw) {
-      let r = piano.getAttribute("rotation");
-      piano.setAttribute("rotation", {
-        x: r.x,
-        y: r.y + yaw,
-        z: r.z
-      });
-    }
-
-    function scale(amount) {
-      let s = piano.getAttribute("scale");
-      piano.setAttribute("scale", {
-        x: s.x + amount,
-        y: s.y + amount,
-        z: s.z + amount
-      });
-    }
-  }
-});
-
-
-// -------- SIMPLE PIANO --------
-
-AFRAME.registerComponent('simple-piano', {
-  init: function () {
-
-    const root = this.el;
-
-    const whiteKeyWidth = 0.022;
-
-    let whiteIndex = 0;
-
-    for (let i = 0; i < 52; i++) {
-
-      let key = document.createElement("a-box");
-
-      key.setAttribute("width", whiteKeyWidth);
-      key.setAttribute("height", 0.1);
-      key.setAttribute("depth", 0.15);
-      key.setAttribute("color", "white");
-
-      key.setAttribute(
-        "position",
-        `${whiteIndex * whiteKeyWidth} 1.2 -1`
-      );
-
-      whiteIndex++;
-
-      root.appendChild(key);
-    }
-  }
-});
-
-
-// -------- BUTTON COMPONENT --------
-
-AFRAME.registerComponent('ui-button', {
-  schema: {
-    action: {type: 'string'}
-  },
-
-  init: function () {
-
-    this.el.addEventListener("click", () => {
-      const action = this.data.action;
-      window.calibrate[action]();
-    });
-
-    this.el.setAttribute("class", "clickable");
-  }
-});
-
-</script>
-
-<a-scene vr-calibrator>
-
-  <!-- Controllers -->
-  <a-entity laser-controls="hand: right" raycaster="objects: .clickable"></a-entity>
-  <a-entity laser-controls="hand: left" raycaster="objects: .clickable"></a-entity>
-
-  <a-camera position="0 1.6 0"></a-camera>
-
-  <!-- Piano -->
-  <a-entity id="pianoRoot" simple-piano></a-entity>
-
-  <!-- Calibration Panel -->
-
-  <a-entity position="0 1.5 -0.8">
-
-    <a-text value="PIANO CALIBRATION"
-            position="-0.3 0.3 0"
-            color="yellow"></a-text>
-
-    <!-- Movement -->
-
-    <a-box ui-button="action:left" position="-0.3 0 0"
-           color="red" depth="0.05" height="0.1" width="0.1"></a-box>
-
-    <a-box ui-button="action:right" position="-0.1 0 0"
-           color="red" depth="0.05" height="0.1" width="0.1"></a-box>
-
-    <a-box ui-button="action:forward" position="0.1 0 0"
-           color="blue" depth="0.05" height="0.1" width="0.1"></a-box>
-
-    <a-box ui-button="action:back" position="0.3 0 0"
-           color="blue" depth="0.05" height="0.1" width="0.1"></a-box>
-
-    <!-- Up Down -->
-
-    <a-box ui-button="action:up" position="-0.3 -0.15 0"
-           color="green" depth="0.05" height="0.1" width="0.1"></a-box>
-
-    <a-box ui-button="action:down" position="-0.1 -0.15 0"
-           color="green" depth="0.05" height="0.1" width="0.1"></a-box>
-
-    <!-- Rotate -->
-
-    <a-box ui-button="action:rotateLeft" position="0.1 -0.15 0"
-           color="purple" depth="0.05" height="0.1" width="0.1"></a-box>
-
-    <a-box ui-button="action:rotateRight" position="0.3 -0.15 0"
-           color="purple" depth="0.05" height="0.1" width="0.1"></a-box>
-
-    <!-- Scale -->
-
-    <a-box ui-button="action:scaleUp" position="-0.3 -0.3 0"
-           color="orange" depth="0.05" height="0.1" width="0.1"></a-box>
-
-    <a-box ui-button="action:scaleDown" position="-0.1 -0.3 0"
-           color="orange" depth="0.05" height="0.1" width="0.1"></a-box>
-
-    <!-- Save -->
-
-    <a-box ui-button="action:save" position="0.3 -0.3 0"
-           color="yellow" depth="0.05" height="0.1" width="0.2"></a-box>
-
-    <a-text value="SAVE"
-            position="0.26 -0.3 0.04"
-            color="black"></a-text>
-
-  </a-entity>
-
-</a-scene>
-
+    <div id="ui">
+        <h3 style="margin:0">Piano Calibrator</h3>
+        <p id="status">Press Start to begin</p>
+        <button onclick="initAudio()">1. START AUDIO</button>
+        <button onclick="startCalibration()">2. START CALIBRATION</button>
+    </div>
+
+    <a-scene>
+        <a-entity id="piano-wrapper">
+            <a-entity id="piano-keys"></a-entity>
+        </a-entity>
+
+        <a-sky color="#111"></a-sky>
+        <a-grid-helper size="10" divisions="10"></a-grid-helper>
+
+        <a-entity id="leftHand" laser-controls="hand: left" raycaster="objects: .key; far: 0.1"></a-entity>
+        <a-entity id="rightHand" laser-controls="hand: right" raycaster="objects: .key; far: 0.1"></a-entity>
+        
+        <a-sphere id="markerL" radius="0.02" color="red" visible="false"></a-sphere>
+        <a-sphere id="markerR" radius="0.02" color="blue" visible="false"></a-sphere>
+    </a-scene>
+
+    <script>
+        let audioCtx = null;
+        let player = new WebAudioFontPlayer();
+        let pianoInstrument = _tone_0000_Aspirin_sf2_file;
+        
+        let calibStep = 0; // 0: none, 1: Left Key, 2: Right Key
+        let posL = new THREE.Vector3();
+        let posR = new THREE.Vector3();
+
+        function initAudio() {
+            if (!audioCtx) {
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                player.loader.decodeAfterLoading(audioCtx, '_tone_0000_Aspirin_sf2_file');
+                document.getElementById('status').innerText = "Audio Ready. Click Calibrate.";
+            }
+        }
+
+        function startCalibration() {
+            calibStep = 1;
+            document.getElementById('status').innerHTML = "Step 1: Touch your <span class='step'>REAL LOW A</span> and pull the Right Trigger.";
+        }
+
+        // Listen for trigger clicks on Quest controllers
+        window.addEventListener('triggerdown', function (evt) {
+            if (calibStep === 0) return;
+
+            // Get the controller position
+            let controllerPos = evt.target.object3D.position;
+
+            if (calibStep === 1) {
+                posL.copy(controllerPos);
+                document.getElementById('markerL').setAttribute('position', posL);
+                document.getElementById('markerL').setAttribute('visible', 'true');
+                calibStep = 2;
+                document.getElementById('status').innerHTML = "Step 2: Touch your <span class='step'>REAL HIGH C</span> and pull Trigger.";
+            } 
+            else if (calibStep === 2) {
+                posR.copy(controllerPos);
+                document.getElementById('markerR').setAttribute('position', posR);
+                document.getElementById('markerR').setAttribute('visible', 'true');
+                applyCalibration();
+                calibStep = 0;
+                document.getElementById('status').innerText = "Calibration Complete!";
+            }
+        });
+
+        function applyCalibration() {
+            const wrapper = document.querySelector('#piano-wrapper');
+            
+            // 1. Position the piano at the Left Marker
+            wrapper.object3D.position.copy(posL);
+
+            // 2. Calculate Distance and Angle
+            let distance = posL.distanceTo(posR);
+            let direction = new THREE.Vector3().subVectors(posR, posL);
+            
+            // 3. Rotate piano to match the angle of your real piano
+            let angle = Math.atan2(direction.x, direction.z);
+            wrapper.object3D.rotation.y = angle - Math.PI/2;
+
+            // 4. Build the keys scaled to that distance
+            createPiano(distance);
+        }
+
+        function createPiano(totalWidth) {
+            const container = document.querySelector('#piano-keys');
+            container.innerHTML = ''; // Clear old keys
+            
+            const whiteKeyCount = 52;
+            const keyWidth = totalWidth / whiteKeyCount;
+            const blackKeyPattern = [1, 1, 0, 1, 1, 1, 0];
+            
+            let currentMidi = 21; // A0
+
+            for (let i = 0; i < whiteKeyCount; i++) {
+                let key = document.createElement('a-box');
+                key.setAttribute('class', 'key');
+                key.setAttribute('width', keyWidth * 0.9);
+                key.setAttribute('height', 0.05);
+                key.setAttribute('depth', 0.2);
+                key.setAttribute('position', `${i * keyWidth} 0 0`);
+                key.setAttribute('piano-key', `midi: ${currentMidi}`);
+                container.appendChild(key);
+
+                let note = currentMidi % 12;
+                currentMidi += ([4, 11].includes(note)) ? 1 : 2;
+            }
+
+            // Logic for black keys (simplified for alignment)
+            currentMidi = 22;
+            for (let i = 0; i < 51; i++) {
+                let octavePos = (i + 5) % 7;
+                if (blackKeyPattern[octavePos] === 1) {
+                    let bKey = document.createElement('a-box');
+                    bKey.setAttribute('width', keyWidth * 0.6);
+                    bKey.setAttribute('height', 0.07);
+                    bKey.setAttribute('depth', 0.12);
+                    bKey.setAttribute('position', `${(i + 0.5) * keyWidth} 0.02 -0.05`);
+                    bKey.setAttribute('color', 'black');
+                    bKey.setAttribute('piano-key', `midi: ${currentMidi}`);
+                    container.appendChild(bKey);
+                }
+                let note = currentMidi % 12;
+                currentMidi += ([1, 3, 6, 8, 10].includes(note)) ? 2 : 1;
+            }
+        }
+
+        AFRAME.registerComponent('piano-key', {
+            schema: { midi: { default: 60 } },
+            init: function () {
+                this.el.addEventListener('mousedown', () => {
+                    player.queueWaveTable(audioCtx, audioCtx.destination, pianoInstrument, audioCtx.currentTime, this.data.midi, 1.0);
+                    this.el.setAttribute('color', 'yellow');
+                    setTimeout(() => this.el.setAttribute('color', this.el.getAttribute('color') === 'black' ? 'black' : 'white'), 200);
+                });
+            }
+        });
+    </script>
 </body>
 </html>
