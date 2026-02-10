@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Quest VR Piano - Grab & Place</title>
+    <title>Quest VR Piano - A-Button Calibration</title>
     <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
     <script src="https://surikov.github.io/webaudiofont/npm/dist/WebAudioFontPlayer.js"></script>
     <script src="https://surikov.github.io/webaudiofontdata/sound/0000_Aspirin_sf2_file.js"></script>
@@ -10,33 +10,31 @@
 
     <a-scene renderer="colorManagement: true;">
         
-        <a-entity id="piano-wrapper" position="0 1 -0.5">
+        <a-entity id="piano-wrapper" position="0 1.2 -0.5">
             <a-entity id="piano-keys"></a-entity>
-
-            <a-box id="handle" class="raycastable" 
-                   position="0 0.1 0" width="0.2" height="0.1" depth="0.1" 
-                   color="#FF9800" visible="true">
-                <a-text value="GRAB HERE" align="center" position="0 0.08 0" scale="0.5"></a-text>
-            </a-box>
         </a-entity>
 
-        <a-entity id="ui-panel" position="0 1.6 -0.8">
-            <a-plane color="#222" width="0.8" height="0.4" opacity="0.9">
-                <a-text id="status-text" value="1. Click START to Enable Sound\n2. Grab Orange Box to move Piano" 
-                        align="center" position="0 0.1 0.01" width="0.7"></a-text>
+        <a-entity id="ui-panel" position="0 1.5 -0.6">
+            <a-plane color="#111" width="0.8" height="0.5" opacity="0.9" rotation="-10 0 0">
+                <a-text id="status-text" value="1. Click START (Laser)\n2. Hold 'A' Button to Move Piano\n3. Click LOCK when done" 
+                        align="center" position="0 0.15 0.01" width="0.7"></a-text>
                 
-                <a-box id="start-btn" class="raycastable" position="0 -0.1 0.02" width="0.3" height="0.1" color="#4CAF50">
-                    <a-text value="START" align="center" width="0.8" position="0 0 0.02"></a-text>
-                </a-box>
+                <a-circle id="start-btn" class="raycastable" position="0 -0.1 0.02" radius="0.08" color="#4CAF50">
+                    <a-text value="START" align="center" width="0.8" position="0 0 0.01"></a-text>
+                </a-circle>
 
-                <a-box id="lock-btn" class="raycastable" position="0 -0.1 0.02" width="0.3" height="0.1" color="#2196F3" visible="false">
-                    <a-text value="LOCK PIANO" align="center" width="0.8" position="0 0 0.02"></a-text>
-                </a-box>
+                <a-circle id="lock-btn" class="raycastable" position="0 -0.1 0.02" radius="0.08" color="#2196F3" visible="false">
+                    <a-text value="LOCK" align="center" width="0.8" position="0 0 0.01"></a-text>
+                </a-circle>
+
+                <a-plane id="reset-btn" class="raycastable" position="0 -0.22 0.01" width="0.3" height="0.05" color="#444" visible="false">
+                    <a-text value="RE-CALIBRATE" align="center" width="0.4"></a-text>
+                </a-plane>
             </a-plane>
         </a-entity>
 
-        <a-entity id="leftHand" laser-controls="hand: left" raycaster="objects: .raycastable; far: 10"></a-entity>
-        <a-entity id="rightHand" laser-controls="hand: right" raycaster="objects: .raycastable; far: 10"></a-entity>
+        <a-entity id="leftHand" laser-controls="hand: left" raycaster="objects: .raycastable; far: 5"></a-entity>
+        <a-entity id="rightHand" laser-controls="hand: right" raycaster="objects: .raycastable; far: 5"></a-entity>
 
         <a-camera position="0 1.6 0"></a-camera>
     </a-scene>
@@ -47,25 +45,26 @@
         let pianoInstrument = _tone_0000_Aspirin_sf2_file;
         
         let isGrabbing = false;
-        let activeController = null;
+        let isLocked = false;
 
         const wrapper = document.getElementById('piano-wrapper');
-        const handle = document.getElementById('handle');
         const startBtn = document.getElementById('start-btn');
         const lockBtn = document.getElementById('lock-btn');
+        const resetBtn = document.getElementById('reset-btn');
         const statusText = document.getElementById('status-text');
+        const rightHand = document.getElementById('rightHand');
 
-        // 1. GENERATE PIANO IMMEDIATELY (Standard 88 keys, ~1.23 meters wide)
+        // 1. GENERATE 88-KEY PIANO
         function initPiano() {
             const container = document.querySelector('#piano-keys');
-            const totalWidth = 1.22; // Standard 88-key piano width
+            const totalWidth = 1.22; 
             const whiteKeyCount = 52;
             const keyWidth = totalWidth / whiteKeyCount;
             const blackKeyPattern = [1, 1, 0, 1, 1, 1, 0];
             let currentMidi = 21; 
 
             for (let i = 0; i < whiteKeyCount; i++) {
-                addKey(container, (i * keyWidth) - (totalWidth/2), 0, 0, keyWidth * 0.9, 0.03, 0.2, 'white', currentMidi);
+                addKey(container, (i * keyWidth) - (totalWidth/2), 0, 0, keyWidth * 0.9, 0.03, 0.25, 'white', currentMidi);
                 let note = currentMidi % 12;
                 currentMidi += ([4, 11].includes(note)) ? 1 : 2;
             }
@@ -74,7 +73,7 @@
             for (let i = 0; i < 51; i++) {
                 let octavePos = (i + 5) % 7;
                 if (blackKeyPattern[octavePos] === 1) {
-                    addKey(container, ((i + 0.5) * keyWidth) - (totalWidth/2), 0.02, -0.06, keyWidth * 0.6, 0.05, 0.12, 'black', currentMidi);
+                    addKey(container, ((i + 0.5) * keyWidth) - (totalWidth/2), 0.02, -0.08, keyWidth * 0.6, 0.05, 0.15, 'black', currentMidi);
                 }
                 let note = currentMidi % 12;
                 currentMidi += ([1, 3, 6, 8, 10].includes(note)) ? 2 : 1;
@@ -91,49 +90,59 @@
             parent.appendChild(key);
         }
 
-        // 2. AUDIO & UI LOGIC
+        // 2. BUTTON LOGIC
         startBtn.addEventListener('click', () => {
             if (!audioCtx) {
                 audioCtx = new (window.AudioContext || window.webkitAudioContext)();
                 player.loader.decodeAfterLoading(audioCtx, '_tone_0000_Aspirin_sf2_file');
                 startBtn.setAttribute('visible', 'false');
+                startBtn.setAttribute('class', 'not-clickable');
                 lockBtn.setAttribute('visible', 'true');
-                statusText.setAttribute('value', "GRAB ORANGE BOX\nAlign with real piano\nThen click LOCK");
+                statusText.setAttribute('value', "AUDIO ON\nHold 'A' button on Right Controller\nto move piano. Click LOCK to finish.");
             }
         });
 
         lockBtn.addEventListener('click', () => {
-            handle.setAttribute('visible', 'false');
-            handle.setAttribute('class', 'not-raycastable'); // Disable grabbing
-            statusText.setAttribute('value', "PIANO LOCKED\nReady to play!");
-            lockBtn.setAttribute('visible', 'false');
-            // Show a reset button if needed
-            setTimeout(() => { document.getElementById('ui-panel').setAttribute('visible', 'false'); }, 2000);
-        });
-
-        // 3. GRAB LOGIC (Move piano with controller)
-        handle.addEventListener('mousedown', (evt) => {
-            isGrabbing = true;
-            activeController = evt.detail.cursorEl; 
-        });
-
-        window.addEventListener('triggerup', () => {
+            isLocked = true;
             isGrabbing = false;
-            activeController = null;
+            lockBtn.setAttribute('visible', 'false');
+            lockBtn.setAttribute('class', 'not-clickable');
+            resetBtn.setAttribute('visible', 'true');
+            statusText.setAttribute('value', "LOCKED");
+            setTimeout(() => { 
+                // Hide main panel but keep reset button area potentially accessible
+                statusText.setAttribute('value', "Piano Aligned.");
+            }, 2000);
         });
 
-        // Frame-by-frame update to stick piano to controller
+        resetBtn.addEventListener('click', () => {
+            isLocked = false;
+            lockBtn.setAttribute('visible', 'true');
+            lockBtn.setAttribute('class', 'raycastable');
+            resetBtn.setAttribute('visible', 'false');
+            statusText.setAttribute('value', "RE-CALIBRATING\nHold 'A' to move.");
+        });
+
+        // 3. PHYSICAL BUTTON GRAB LOGIC (Right Controller 'A')
+        rightHand.addEventListener('abuttondown', () => {
+            if (!isLocked) isGrabbing = true;
+        });
+
+        rightHand.addEventListener('abuttonup', () => {
+            isGrabbing = false;
+        });
+
         AFRAME.registerComponent('piano-mover', {
             tick: function () {
-                if (isGrabbing && activeController) {
-                    // Match the wrapper position/rotation to the controller
+                if (isGrabbing && !isLocked) {
                     let controllerPos = new THREE.Vector3();
-                    activeController.object3D.getWorldPosition(controllerPos);
+                    let controllerQuat = new THREE.Quaternion();
                     
-                    let controllerRot = new THREE.Vector3();
-                    activeController.object3D.getWorldQuaternion(wrapper.object3D.quaternion);
+                    rightHand.object3D.getWorldPosition(controllerPos);
+                    rightHand.object3D.getWorldQuaternion(controllerQuat);
                     
                     wrapper.object3D.position.copy(controllerPos);
+                    wrapper.object3D.quaternion.copy(controllerQuat);
                 }
             }
         });
@@ -143,10 +152,8 @@
         AFRAME.registerComponent('piano-key', {
             schema: { midi: {type: 'int'}, orig: {type: 'string'} },
             init: function () {
-                this.el.addEventListener('mousedown', (evt) => {
-                    // Don't play sound if we are trying to grab the handle
-                    if (isGrabbing || evt.target.id === "handle") return;
-                    if (audioCtx) {
+                this.el.addEventListener('mousedown', () => {
+                    if (audioCtx && isLocked) { // Only play if locked or you'll play while moving
                         player.queueWaveTable(audioCtx, audioCtx.destination, pianoInstrument, audioCtx.currentTime, this.data.midi, 1.0);
                         this.el.setAttribute('color', 'yellow');
                         setTimeout(() => this.el.setAttribute('color', this.data.orig), 150);
