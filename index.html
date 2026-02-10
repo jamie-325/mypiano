@@ -1,100 +1,107 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Quest VR Piano - Full VR Mode</title>
+    <title>Quest VR Piano - 100% VR Control</title>
     <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
     <script src="https://surikov.github.io/webaudiofont/npm/dist/WebAudioFontPlayer.js"></script>
     <script src="https://surikov.github.io/webaudiofontdata/sound/0000_Aspirin_sf2_file.js"></script>
 </head>
 <body>
 
-    <a-scene environment="preset: contact">
-        <a-assets></a-assets>
-
+    <a-scene environment="preset: moonlight">
         <a-entity id="piano-wrapper">
             <a-entity id="piano-keys"></a-entity>
         </a-entity>
 
-        <a-entity id="menu" position="0 1.5 -0.7" rotation="-20 0 0">
-            <a-plane color="#222" width="0.6" height="0.4" opacity="0.9">
-                <a-text id="status-text" value="1. Click Start Audio\non computer screen\n2. Then click Calibrate" 
-                        align="center" position="0 0.1 0.01" width="0.5"></a-text>
-                
-                <a-gui-button id="calib-btn" class="clickable" geometry="primitive: plane; width: 0.4; height: 0.08" 
-                             material="color: #444" position="0 -0.1 0.02"
-                             event-set__mouseenter="material.color: #666"
-                             event-set__mouseleave="material.color: #444">
-                    <a-text value="START CALIBRATION" align="center" width="0.4"></a-text>
-                </a-gui-button>
+        <a-entity id="start-screen" position="0 1.5 -1">
+            <a-plane color="#111" width="1" height="0.6" opacity="0.9">
+                <a-text value="WELCOME TO VR PIANO\nPoint and Click START with your Trigger" 
+                        align="center" position="0 0.1 0.01" width="0.8"></a-text>
+                <a-box id="audio-unlock-btn" class="raycastable" 
+                       position="0 -0.15 0.02" width="0.4" height="0.15" depth="0.02" color="#4CAF50"
+                       animation__mouseenter="property: scale; to: 1.1 1.1 1.1; dur: 200; startEvents: mouseenter"
+                       animation__mouseleave="property: scale; to: 1 1 1; dur: 200; startEvents: mouseleave">
+                    <a-text value="START" align="center" width="1" position="0 0 0.02"></a-text>
+                </a-box>
             </a-plane>
         </a-entity>
 
-        <a-entity id="rig">
-            <a-camera position="0 1.6 0">
-                <a-cursor raycaster="objects: .clickable, .key"></a-cursor>
-            </a-camera>
-            
-            <a-entity id="leftHand" laser-controls="hand: left" raycaster="objects: .clickable, .key; far: 5"></a-entity>
-            <a-entity id="rightHand" laser-controls="hand: right" raycaster="objects: .clickable, .key; far: 5"></a-entity>
+        <a-entity id="menu" position="0 1.5 -1" visible="false">
+            <a-plane color="#222" width="0.8" height="0.5" opacity="0.9">
+                <a-text id="status-text" value="Audio Active.\nReady to match your real piano?" 
+                        align="center" position="0 0.15 0.01" width="0.7"></a-text>
+                
+                <a-box id="calib-btn" class="raycastable" 
+                       position="0 -0.1 0.02" width="0.5" height="0.12" depth="0.02" color="#2196F3">
+                    <a-text value="BEGIN CALIBRATION" align="center" width="0.5" position="0 0 0.02"></a-text>
+                </a-box>
+            </a-plane>
         </a-entity>
 
-        <a-sphere id="markerL" radius="0.015" color="red" visible="false"></a-sphere>
-        <a-sphere id="markerR" radius="0.015" color="blue" visible="false"></a-sphere>
+        <a-entity id="leftHand" laser-controls="hand: left" raycaster="objects: .raycastable; far: 10; showLine: true"></a-entity>
+        <a-entity id="rightHand" laser-controls="hand: right" raycaster="objects: .raycastable; far: 10; showLine: true"></a-entity>
+
+        <a-camera position="0 1.6 0"></a-camera>
+
+        <a-sphere id="markerL" radius="0.01" color="red" visible="false"></a-sphere>
+        <a-sphere id="markerR" radius="0.01" color="blue" visible="false"></a-sphere>
     </a-scene>
 
     <script>
-        // --- AUDIO ENGINE ---
         let audioCtx = null;
         let player = new WebAudioFontPlayer();
         let pianoInstrument = _tone_0000_Aspirin_sf2_file;
-
-        // Unlock audio via screen click (Browser requirement)
-        window.addEventListener('click', () => {
-            if (!audioCtx) {
-                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-                player.loader.decodeAfterLoading(audioCtx, '_tone_0000_Aspirin_sf2_file');
-                document.getElementById('status-text').setAttribute('value', 'Audio Ready!\nClick START CALIBRATION below');
-            }
-        });
-
-        // --- CALIBRATION LOGIC ---
         let calibStep = 0; 
         let posL = new THREE.Vector3();
         let posR = new THREE.Vector3();
 
+        const startScreen = document.getElementById('start-screen');
+        const menu = document.getElementById('menu');
         const statusText = document.getElementById('status-text');
-        const calibBtn = document.getElementById('calib-btn');
 
-        calibBtn.addEventListener('click', () => {
+        // --- 1. THE "UNLOCK" BUTTON HANDLER ---
+        document.getElementById('audio-unlock-btn').addEventListener('click', () => {
+            if (!audioCtx) {
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                player.loader.decodeAfterLoading(audioCtx, '_tone_0000_Aspirin_sf2_file');
+                
+                // Switch Screens in VR
+                startScreen.setAttribute('visible', 'false');
+                startScreen.setAttribute('position', '0 -10 0'); // Move away
+                menu.setAttribute('visible', 'true');
+            }
+        });
+
+        // --- 2. CALIBRATION BUTTON ---
+        document.getElementById('calib-btn').addEventListener('click', () => {
             calibStep = 1;
             statusText.setAttribute('value', 'STEP 1:\nTouch your REAL LOW A\nand pull Trigger');
         });
 
-        // Track trigger pulls for calibration
+        // --- 3. PHYSICAL TRIGGER LOGIC ---
         window.addEventListener('triggerdown', (evt) => {
             if (calibStep === 0) return;
 
-            // Get controller position in world space
             let controllerPos = new THREE.Vector3();
             evt.target.object3D.getWorldPosition(controllerPos);
 
             if (calibStep === 1) {
                 posL.copy(controllerPos);
-                showMarker('markerL', posL);
+                mark('markerL', posL);
                 calibStep = 2;
                 statusText.setAttribute('value', 'STEP 2:\nTouch your REAL HIGH C\nand pull Trigger');
             } 
             else if (calibStep === 2) {
                 posR.copy(controllerPos);
-                showMarker('markerR', posR);
+                mark('markerR', posR);
                 applyCalibration();
                 calibStep = 0;
-                statusText.setAttribute('value', 'CALIBRATED!\nGo play your piano.');
-                setTimeout(() => { document.getElementById('menu').setAttribute('visible', 'false'); }, 2000);
+                statusText.setAttribute('value', 'SUCCESS!\nVirtual Piano Aligned.');
+                setTimeout(() => { menu.setAttribute('visible', 'false'); }, 2000);
             }
         });
 
-        function showMarker(id, pos) {
+        function mark(id, pos) {
             const m = document.getElementById(id);
             m.setAttribute('position', pos);
             m.setAttribute('visible', 'true');
@@ -103,71 +110,57 @@
         function applyCalibration() {
             const wrapper = document.querySelector('#piano-wrapper');
             wrapper.object3D.position.copy(posL);
-
-            let distance = posL.distanceTo(posR);
             let direction = new THREE.Vector3().subVectors(posR, posL);
+            let distance = posL.distanceTo(posR);
             let angle = Math.atan2(direction.x, direction.z);
             wrapper.object3D.rotation.y = angle - Math.PI/2;
-
             buildPiano(distance);
         }
 
-        // --- PIANO GENERATION ---
         function buildPiano(totalWidth) {
             const container = document.querySelector('#piano-keys');
             container.innerHTML = ''; 
-            
             const whiteKeyCount = 52;
             const keyWidth = totalWidth / whiteKeyCount;
             const blackKeyPattern = [1, 1, 0, 1, 1, 1, 0];
             let currentMidi = 21; 
 
-            // White Keys
             for (let i = 0; i < whiteKeyCount; i++) {
-                createKey(container, i * keyWidth, 0, 0, keyWidth * 0.9, 0.04, 0.2, 'white', currentMidi);
+                addKey(container, i * keyWidth, 0, 0, keyWidth * 0.9, 0.04, 0.25, 'white', currentMidi);
                 let note = currentMidi % 12;
                 currentMidi += ([4, 11].includes(note)) ? 1 : 2;
             }
 
-            // Black Keys
             currentMidi = 22;
             for (let i = 0; i < 51; i++) {
                 let octavePos = (i + 5) % 7;
                 if (blackKeyPattern[octavePos] === 1) {
-                    createKey(container, (i + 0.5) * keyWidth, 0.02, -0.05, keyWidth * 0.6, 0.06, 0.12, 'black', currentMidi);
+                    addKey(container, (i + 0.5) * keyWidth, 0.03, -0.08, keyWidth * 0.6, 0.06, 0.15, 'black', currentMidi);
                 }
                 let note = currentMidi % 12;
                 currentMidi += ([1, 3, 6, 8, 10].includes(note)) ? 2 : 1;
             }
         }
 
-        function createKey(parent, x, y, z, w, h, d, color, midi) {
+        function addKey(parent, x, y, z, w, h, d, color, midi) {
             let key = document.createElement('a-box');
-            key.setAttribute('class', 'key');
+            key.setAttribute('class', 'raycastable');
             key.setAttribute('position', `${x} ${y} ${z}`);
-            key.setAttribute('width', w);
-            key.setAttribute('height', h);
-            key.setAttribute('depth', d);
+            key.setAttribute('width', w); key.setAttribute('height', h); key.setAttribute('depth', d);
             key.setAttribute('color', color);
-            key.setAttribute('piano-key', `midi: ${midi}; originalColor: ${color}`);
+            key.setAttribute('piano-key', `midi: ${midi}; orig: ${color}`);
             parent.appendChild(key);
         }
 
-        // --- INTERACTIVE KEY COMPONENT ---
         AFRAME.registerComponent('piano-key', {
-            schema: { midi: {type: 'int'}, originalColor: {type: 'string'} },
+            schema: { midi: {type: 'int'}, orig: {type: 'string'} },
             init: function () {
                 this.el.addEventListener('mousedown', () => {
-                    if (!audioCtx) return;
-                    player.queueWaveTable(audioCtx, audioCtx.destination, pianoInstrument, audioCtx.currentTime, this.data.midi, 1.0);
-                    
-                    // Visual feedback
-                    this.el.setAttribute('color', '#FFD700');
-                    this.el.object3D.position.y -= 0.01;
-                    setTimeout(() => {
-                        this.el.setAttribute('color', this.data.originalColor);
-                        this.el.object3D.position.y += 0.01;
-                    }, 200);
+                    if (audioCtx) {
+                        player.queueWaveTable(audioCtx, audioCtx.destination, pianoInstrument, audioCtx.currentTime, this.data.midi, 1.0);
+                        this.el.setAttribute('color', 'yellow');
+                        setTimeout(() => this.el.setAttribute('color', this.data.orig), 150);
+                    }
                 });
             }
         });
