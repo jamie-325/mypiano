@@ -1,14 +1,14 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Quest VR Piano - Mixed Reality Edition</title>
+    <title>Quest VR Piano - MR Fix</title>
     <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
     <script src="https://surikov.github.io/webaudiofont/npm/dist/WebAudioFontPlayer.js"></script>
     <script src="https://surikov.github.io/webaudiofontdata/sound/0000_Aspirin_sf2_file.js"></script>
 </head>
 <body>
 
-    <a-scene renderer="alpha: true; colorManagement: true;" xr-mode-ui="enabled: true">
+    <a-scene quest-passthrough renderer="alpha: true; colorManagement: true;">
         
         <a-entity id="piano-wrapper" position="0 1.2 -0.5">
             <a-entity id="piano-keys"></a-entity>
@@ -16,24 +16,20 @@
 
         <a-entity id="ui-panel" position="0 1.5 -0.6">
             <a-plane color="#111" width="0.9" height="0.6" opacity="0.9" rotation="-10 0 0">
-                <a-text id="status-text" value="1. Click START\n2. Use 'A' Button to Position\n3. Toggle MR to see your room" 
+                <a-text id="status-text" value="1. Click START\n2. Use 'A' to Position\n3. Click 'TOGGLE MR'" 
                         align="center" position="0 0.18 0.01" width="0.7"></a-text>
                 
-                <a-circle id="start-btn" class="raycastable" position="-0.2 -0.1 0.02" radius="0.08" color="#4CAF50">
+                <a-circle id="start-btn" class="raycastable" position="-0.25 -0.1 0.02" radius="0.08" color="#4CAF50">
                     <a-text value="START" align="center" width="0.8" position="0 0 0.01"></a-text>
                 </a-circle>
 
-                <a-circle id="mr-btn" class="raycastable" position="0.2 -0.1 0.02" radius="0.08" color="#9C27B0">
-                    <a-text value="MR MODE" align="center" width="0.8" position="0 0 0.01"></a-text>
+                <a-circle id="mr-btn" class="raycastable" position="0.25 -0.1 0.02" radius="0.08" color="#9C27B0">
+                    <a-text value="TOGGLE MR" align="center" width="0.8" position="0 0 0.01"></a-text>
                 </a-circle>
 
                 <a-circle id="lock-btn" class="raycastable" position="0 -0.1 0.02" radius="0.08" color="#2196F3" visible="false">
                     <a-text value="LOCK" align="center" width="0.8" position="0 0 0.01"></a-text>
                 </a-circle>
-
-                <a-plane id="reset-btn" class="raycastable" position="0 -0.25 0.01" width="0.3" height="0.05" color="#444" visible="false">
-                    <a-text value="RE-CALIBRATE" align="center" width="0.4"></a-text>
-                </a-plane>
             </a-plane>
         </a-entity>
 
@@ -41,111 +37,72 @@
         <a-entity id="rightHand" laser-controls="hand: right" raycaster="objects: .raycastable; far: 5"></a-entity>
 
         <a-camera position="0 1.6 0"></a-camera>
-
-        <a-grid-helper id="floor-grid" size="10" divisions="10"></a-grid-helper>
+        <a-sky id="sky" color="#222"></a-sky>
     </a-scene>
 
     <script>
+        // --- QUEST PASSTHROUGH COMPONENT ---
+        AFRAME.registerComponent('quest-passthrough', {
+            init: function () {
+                this.el.addEventListener('enter-vr', () => {
+                    if (this.el.is('ar-mode')) {
+                        // In AR mode (standard), clear colors automatically
+                        document.getElementById('sky').setAttribute('visible', 'false');
+                    }
+                });
+            },
+            toggleMR: function(active) {
+                const sky = document.getElementById('sky');
+                if (active) {
+                    // Set the background to be fully transparent for the Quest
+                    this.el.setAttribute('background', 'transparent: true');
+                    sky.setAttribute('visible', 'false');
+                    // This is the "magic" line for the Quest Browser
+                    this.el.renderer.setClearColor(0x000000, 0);
+                } else {
+                    this.el.setAttribute('background', 'transparent: false');
+                    sky.setAttribute('visible', 'true');
+                    this.el.renderer.setClearColor(0x222222, 1);
+                }
+            }
+        });
+
+        // --- PIANO & AUDIO LOGIC ---
         let audioCtx = null;
         let player = new WebAudioFontPlayer();
         let pianoInstrument = _tone_0000_Aspirin_sf2_file;
-        
-        let isGrabbing = false;
-        let isLocked = false;
-        let mrActive = false;
+        let isGrabbing = false, isLocked = false, mrActive = false;
 
         const wrapper = document.getElementById('piano-wrapper');
-        const startBtn = document.getElementById('start-btn');
-        const mrBtn = document.getElementById('mr-btn');
-        const lockBtn = document.getElementById('lock-btn');
-        const resetBtn = document.getElementById('reset-btn');
         const statusText = document.getElementById('status-text');
         const rightHand = document.getElementById('rightHand');
-        const floorGrid = document.getElementById('floor-grid');
 
-        // 1. GENERATE PIANO
-        function initPiano() {
-            const container = document.querySelector('#piano-keys');
-            const totalWidth = 1.22; 
-            const whiteKeyCount = 52;
-            const keyWidth = totalWidth / whiteKeyCount;
-            const blackKeyPattern = [1, 1, 0, 1, 1, 1, 0];
-            let currentMidi = 21; 
-
-            for (let i = 0; i < whiteKeyCount; i++) {
-                addKey(container, (i * keyWidth) - (totalWidth/2), 0, 0, keyWidth * 0.9, 0.03, 0.25, 'white', currentMidi);
-                let note = currentMidi % 12;
-                currentMidi += ([4, 11].includes(note)) ? 1 : 2;
-            }
-
-            currentMidi = 22;
-            for (let i = 0; i < 51; i++) {
-                let octavePos = (i + 5) % 7;
-                if (blackKeyPattern[octavePos] === 1) {
-                    addKey(container, ((i + 0.5) * keyWidth) - (totalWidth/2), 0.02, -0.08, keyWidth * 0.6, 0.05, 0.15, 'black', currentMidi);
-                }
-                let note = currentMidi % 12;
-                currentMidi += ([1, 3, 6, 8, 10].includes(note)) ? 2 : 1;
-            }
-        }
-
-        function addKey(parent, x, y, z, w, h, d, color, midi) {
-            let key = document.createElement('a-box');
-            key.setAttribute('class', 'raycastable');
-            key.setAttribute('position', `${x} ${y} ${z}`);
-            key.setAttribute('width', w); key.setAttribute('height', h); key.setAttribute('depth', d);
-            key.setAttribute('color', color);
-            key.setAttribute('opacity', 0.8); // Semi-transparent to help alignment
-            key.setAttribute('piano-key', `midi: ${midi}; orig: ${color}`);
-            parent.appendChild(key);
-        }
-
-        // 2. MIXED REALITY TOGGLE
-        mrBtn.addEventListener('click', () => {
+        // Toggle MR Button
+        document.getElementById('mr-btn').addEventListener('click', () => {
             mrActive = !mrActive;
-            const sceneEl = document.querySelector('a-scene');
-            
-            if (mrActive) {
-                // Clear the background to show passthrough
-                sceneEl.setAttribute('background', 'transparent: true');
-                floorGrid.setAttribute('visible', 'false');
-                statusText.setAttribute('value', "MR MODE ACTIVE\nYou should see your room.");
-                mrBtn.setAttribute('color', '#FFEB3B'); // Yellow for active
-            } else {
-                sceneEl.setAttribute('background', 'color: #000');
-                floorGrid.setAttribute('visible', 'true');
-                statusText.setAttribute('value', "VR MODE ACTIVE");
-                mrBtn.setAttribute('color', '#9C27B0');
-            }
+            document.querySelector('a-scene').components['quest-passthrough'].toggleMR(mrActive);
+            statusText.setAttribute('value', mrActive ? "MR ACTIVE\nLook around your room!" : "VR ACTIVE");
         });
 
-        // 3. START & LOCK LOGIC
-        startBtn.addEventListener('click', () => {
+        // Start Audio
+        document.getElementById('start-btn').addEventListener('click', () => {
             if (!audioCtx) {
                 audioCtx = new (window.AudioContext || window.webkitAudioContext)();
                 player.loader.decodeAfterLoading(audioCtx, '_tone_0000_Aspirin_sf2_file');
-                startBtn.setAttribute('visible', 'false');
-                lockBtn.setAttribute('visible', 'true');
-                statusText.setAttribute('value', "SOUND ENABLED\nHold 'A' on Right Hand to Move.");
+                document.getElementById('start-btn').setAttribute('visible', 'false');
+                document.getElementById('lock-btn').setAttribute('visible', 'true');
+                statusText.setAttribute('value', "SOUND ON\nHold 'A' to position piano.");
             }
         });
 
-        lockBtn.addEventListener('click', () => {
+        // Lock Piano
+        document.getElementById('lock-btn').addEventListener('click', () => {
             isLocked = true;
-            isGrabbing = false;
-            lockBtn.setAttribute('visible', 'false');
-            resetBtn.setAttribute('visible', 'true');
-            statusText.setAttribute('value', "LOCKED & READY");
+            document.getElementById('lock-btn').setAttribute('visible', 'false');
+            statusText.setAttribute('value', "POSITION LOCKED");
         });
 
-        resetBtn.addEventListener('click', () => {
-            isLocked = false;
-            lockBtn.setAttribute('visible', 'true');
-            resetBtn.setAttribute('visible', 'false');
-            statusText.setAttribute('value', "RE-CALIBRATING\nHold 'A' to move.");
-        });
-
-        // 4. GRAB LOGIC (A Button)
+        // Grab with A-button
         rightHand.addEventListener('abuttondown', () => { if (!isLocked) isGrabbing = true; });
         rightHand.addEventListener('abuttonup', () => { isGrabbing = false; });
 
@@ -163,7 +120,40 @@
         });
         document.querySelector('a-scene').setAttribute('piano-mover', '');
 
-        // 5. KEY INTERACTION
+        // Generate Piano Keys
+        function initPiano() {
+            const container = document.querySelector('#piano-keys');
+            const totalWidth = 1.22, whiteKeyCount = 52, keyWidth = totalWidth / whiteKeyCount;
+            const blackKeyPattern = [1, 1, 0, 1, 1, 1, 0];
+            let currentMidi = 21; 
+
+            for (let i = 0; i < whiteKeyCount; i++) {
+                addKey(container, (i * keyWidth) - (totalWidth/2), 0, 0, keyWidth * 0.9, 0.03, 0.25, 'white', currentMidi);
+                let note = currentMidi % 12;
+                currentMidi += ([4, 11].includes(note)) ? 1 : 2;
+            }
+            currentMidi = 22;
+            for (let i = 0; i < 51; i++) {
+                let octavePos = (i + 5) % 7;
+                if (blackKeyPattern[octavePos] === 1) {
+                    addKey(container, ((i + 0.5) * keyWidth) - (totalWidth/2), 0.02, -0.08, keyWidth * 0.6, 0.05, 0.15, 'black', currentMidi);
+                }
+                let note = currentMidi % 12;
+                currentMidi += ([1, 3, 6, 8, 10].includes(note)) ? 2 : 1;
+            }
+        }
+
+        function addKey(parent, x, y, z, w, h, d, color, midi) {
+            let key = document.createElement('a-box');
+            key.setAttribute('class', 'raycastable');
+            key.setAttribute('position', `${x} ${y} ${z}`);
+            key.setAttribute('width', w); key.setAttribute('height', h); key.setAttribute('depth', d);
+            key.setAttribute('color', color);
+            key.setAttribute('opacity', 0.8);
+            key.setAttribute('piano-key', `midi: ${midi}; orig: ${color}`);
+            parent.appendChild(key);
+        }
+
         AFRAME.registerComponent('piano-key', {
             schema: { midi: {type: 'int'}, orig: {type: 'string'} },
             init: function () {
