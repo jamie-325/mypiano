@@ -1,112 +1,173 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Real Piano 88 Keys - Mouse & VR</title>
+  <title>Calibratable AR Piano with MIDI</title>
   <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/gh/donmccurdy/aframe-extras@v7.2.0/dist/aframe-extras.min.js"></script>
-  <script src="https://surikov.github.io/webaudiofont/npm/dist/WebAudioFontPlayer.js"></script>
-  <script src="https://surikov.github.io/webaudiofontdata/sound/0000_Aspirin_sf2_file.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/webmidi@3.1.6/dist/iife/webmidi.iife.js"></script>
 </head>
 
 <body>
-  <a-scene cursor="rayOrigin: mouse" raycaster="objects: .clickable">
-
-    <a-entity id="rig" movement-controls="fly: false; speed: 0.05; acceleration: 20" position="0 0 1">
-      <a-camera position="0 1.6 0" look-controls></a-camera>
+<script>
+// ---------- MIDI HANDLER ----------
+AFRAME.registerComponent('midi-handler', {
+  init: function () {
+    WebMidi.enable().then(() => {
+      console.log("WebMidi enabled!");
       
-      <a-entity oculus-touch-controls="hand: left"></a-entity>
-      <a-entity oculus-touch-controls="hand: right" laser-controls="hand: right" raycaster="objects: .clickable"></a-entity>
-    </a-entity>
-
-    <a-entity id="piano" position="-2.5 0.8 -0.5"></a-entity>
-
-    <a-sky color="#ECECEC"></a-sky>
-    <a-plane position="0 0 0" rotation="-90 0 0" width="20" height="20" color="#7BC8A4"></a-plane>
-
-  </a-scene>
-
-  <script>
-    // ----------- AUDIO SETUP -----------
-    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-    const player = new WebAudioFontPlayer();
-    const pianoInstrument = _tone_0000_Aspirin_sf2_file;
-    player.loader.decodeAfterLoading(audioCtx, '_tone_0000_Aspirin_sf2_file');
-
-    function playRealPiano(midiNote) {
-      if (audioCtx.state === 'suspended') audioCtx.resume();
-      player.queueWaveTable(audioCtx, audioCtx.destination, pianoInstrument, audioCtx.currentTime, midiNote, 1.5);
-    }
-
-    // ----------- PIANO KEY COMPONENT -----------
-    AFRAME.registerComponent('piano-key', {
-      schema: { color: { default: 'white' }, midi: { default: 60 } },
-      init: function () {
-        const el = this.el;
-        const originalColor = this.data.color;
-
-        // Mouse or Controller Click
-        el.addEventListener('mousedown', () => {
-          el.setAttribute('color', 'yellow');
-          playRealPiano(this.data.midi);
+      WebMidi.inputs.forEach(input => {
+        console.log("Connected to: ", input.name);
+        
+        input.addListener("noteon", e => {
+          // MIDI 21 is A0 (first key on 88-key piano)
+          const noteIndex = e.note.number - 21;
+          const keyEntity = document.querySelector(`[note="${noteIndex}"]`);
           
-          // Visual "Press" Animation
-          el.object3D.position.y -= 0.01;
-
-          setTimeout(() => {
-            el.setAttribute('color', originalColor);
-            el.object3D.position.y += 0.01;
-          }, 150);
+          if (keyEntity) {
+            keyEntity.emit('midi-play');
+            keyEntity.setAttribute('material', 'emissive', '#ff0000');
+            keyEntity.setAttribute('material', 'emissiveIntensity', '0.5');
+          }
         });
 
-        // Hover effect for clarity
-        el.addEventListener('mouseenter', () => {
-          el.setAttribute('color', '#D3D3D3');
+        input.addListener("noteoff", e => {
+          const noteIndex = e.note.number - 21;
+          const keyEntity = document.querySelector(`[note="${noteIndex}"]`);
+          if (keyEntity) {
+            keyEntity.setAttribute('material', 'emissiveIntensity', '0');
+          }
         });
-        el.addEventListener('mouseleave', () => {
-          el.setAttribute('color', originalColor);
-        });
-      }
-    });
+      });
+    }).catch(err => console.warn("MIDI Error or Not Supported:", err));
+  }
+});
 
-    // ----------- BUILD PIANO -----------
-    function createPiano() {
-      const piano = document.querySelector('#piano');
-      const whiteKeyWidth = 0.1;
-      const whiteNotes = [0, 2, 4, 5, 7, 9, 11];
-      let midiPointer = 21; 
+// ---------- CALIBRATION CONTROLS ----------
+AFRAME.registerComponent('calibration-controls', {
+  init: function () {
+    const el = this.el;
+    let data = JSON.parse(localStorage.getItem("pianoCalibration"));
 
-      for (let i = 0; i < 52; i++) {
-        // White Keys
-        let key = document.createElement('a-box');
-        key.setAttribute('class', 'clickable'); // Essential for raycaster
-        key.setAttribute('width', 0.095);
-        key.setAttribute('height', 0.05);
-        key.setAttribute('depth', 0.4);
-        key.setAttribute('position', `${i * whiteKeyWidth} 0 0`);
-        
-        while (!whiteNotes.includes(midiPointer % 12)) midiPointer++;
-        
-        key.setAttribute('piano-key', `color: white; midi: ${midiPointer}`);
-        piano.appendChild(key);
-        
-        // Black Keys
-        let noteInOctave = midiPointer % 12;
-        if (noteInOctave !== 4 && noteInOctave !== 11 && i < 51) {
-          let blackKey = document.createElement('a-box');
-          blackKey.setAttribute('class', 'clickable');
-          blackKey.setAttribute('width', 0.06);
-          blackKey.setAttribute('height', 0.08);
-          blackKey.setAttribute('depth', 0.25);
-          blackKey.setAttribute('position', `${(i * whiteKeyWidth) + (whiteKeyWidth / 2)} 0.03 -0.1`);
-          blackKey.setAttribute('color', 'black');
-          blackKey.setAttribute('piano-key', `color: black; midi: ${midiPointer + 1}`);
-          piano.appendChild(blackKey);
-        }
-        midiPointer++;
-      }
+    if (data) {
+      el.setAttribute("position", data.position);
+      el.setAttribute("rotation", data.rotation);
+      el.setAttribute("scale", data.scale);
     }
 
-    window.onload = createPiano;
-  </script>
+    window.addEventListener("keydown", (e) => {
+      let pos = el.getAttribute("position");
+      let rot = el.getAttribute("rotation");
+      let scale = el.getAttribute("scale");
+      const step = 0.01;
+      const rotStep = 1;
+
+      switch(e.key) {
+        case "ArrowUp":    pos.z -= step; break;
+        case "ArrowDown":  pos.z += step; break;
+        case "ArrowLeft":  pos.x -= step; break;
+        case "ArrowRight": pos.x += step; break;
+        case "w": case "W": pos.y += step; break;
+        case "s": case "S": pos.y -= step; break;
+        case "q": case "Q": rot.y -= rotStep; break;
+        case "e": case "E": rot.y += rotStep; break;
+        case "+": case "=":
+          scale.x += 0.01; scale.y += 0.01; scale.z += 0.01;
+          break;
+        case "-":
+          scale.x -= 0.01; scale.y -= 0.01; scale.z -= 0.01;
+          break;
+        case "p": case "P":
+          localStorage.setItem("pianoCalibration", JSON.stringify({
+            position: pos, rotation: rot, scale: scale
+          }));
+          alert("Calibration Saved!");
+          break;
+      }
+      el.setAttribute("position", pos);
+      el.setAttribute("rotation", rot);
+      el.setAttribute("scale", scale);
+    });
+  }
+});
+
+// ---------- PIANO GENERATOR ----------
+AFRAME.registerComponent('piano-generator', {
+  init: function () {
+    const piano = this.el;
+    const whiteKeyWidth = 0.022;
+    const blackKeyWidth = 0.014;
+    let whiteIndex = 0;
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
+    const generateFrequencies = () => {
+      let freqs = [];
+      for (let i = 0; i < 88; i++) freqs.push(27.5 * Math.pow(2, i / 12));
+      return freqs;
+    };
+    const frequencies = generateFrequencies();
+    const isBlackKey = (i) => [1, 1, 0, 1, 1, 1, 0][i % 7] === 1;
+
+    for (let i = 0; i < 88; i++) {
+      let isBlack = isBlackKey(i);
+      let key = document.createElement("a-box");
+      
+      key.setAttribute("height", isBlack ? 0.05 : 0.1);
+      key.setAttribute("depth", isBlack ? 0.1 : 0.14);
+      key.setAttribute("width", isBlack ? blackKeyWidth : whiteKeyWidth);
+      key.setAttribute("color", isBlack ? "black" : "white");
+      key.setAttribute("note", i); // Custom attribute for MIDI lookup
+
+      let x = isBlack ? (whiteIndex - 0.5) * whiteKeyWidth : whiteIndex * whiteKeyWidth;
+      if (!isBlack) whiteIndex++;
+
+      key.setAttribute("position", `${x} 0 0`);
+
+      const playNote = () => {
+        if (audioCtx.state === 'suspended') audioCtx.resume();
+        let osc = audioCtx.createOscillator();
+        let gain = audioCtx.createGain();
+        osc.type = "sine";
+        osc.frequency.value = frequencies[i];
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start();
+        gain.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + 1);
+        setTimeout(() => osc.stop(), 1000);
+      };
+
+      key.addEventListener("click", playNote);
+      key.addEventListener("midi-play", playNote);
+      
+      piano.appendChild(key);
+    }
+  }
+});
+</script>
+
+<a-scene midi-handler xr-mode-ui="enabled: true">
+  <a-camera position="0 1.6 0" wasd-controls-enabled="false">
+    <a-cursor color="yellow" raycaster="objects: a-box"></a-cursor>
+  </a-camera>
+
+  <a-entity id="pianoRoot"
+            position="0 1.2 -1"
+            calibration-controls
+            piano-generator>
+  </a-entity>
+
+  <a-text
+    value="Calibration Controls:
+Arrows = Move (X/Z)
+W/S = Up/Down (Y)
+Q/E = Rotate
++/- = Scale
+P = Save"
+    position="-0.8 2 -1.5"
+    color="yellow"
+    width="3">
+  </a-text>
+
+  <a-sky color="#222"></a-sky>
+</a-scene>
+
 </body>
 </html>
