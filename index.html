@@ -1,159 +1,173 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Quest VR Piano - Pro Calibration</title>
+    <title>Quest VR Piano - Full VR Mode</title>
     <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
     <script src="https://surikov.github.io/webaudiofont/npm/dist/WebAudioFontPlayer.js"></script>
     <script src="https://surikov.github.io/webaudiofontdata/sound/0000_Aspirin_sf2_file.js"></script>
-    <style>
-        #ui {
-            position: absolute; z-index: 999; top: 20px; left: 20px;
-            background: rgba(0,0,0,0.9); color: white; padding: 20px;
-            font-family: sans-serif; border-radius: 10px; width: 250px;
-        }
-        button { background: #444; color: white; border: 1px solid #777; padding: 10px; width: 100%; margin-top: 10px; cursor: pointer;}
-        button:hover { background: #666; }
-        .step { color: #0f0; font-weight: bold; }
-    </style>
 </head>
 <body>
 
-    <div id="ui">
-        <h3 style="margin:0">Piano Calibrator</h3>
-        <p id="status">Press Start to begin</p>
-        <button onclick="initAudio()">1. START AUDIO</button>
-        <button onclick="startCalibration()">2. START CALIBRATION</button>
-    </div>
+    <a-scene environment="preset: contact">
+        <a-assets></a-assets>
 
-    <a-scene>
         <a-entity id="piano-wrapper">
             <a-entity id="piano-keys"></a-entity>
         </a-entity>
 
-        <a-sky color="#111"></a-sky>
-        <a-grid-helper size="10" divisions="10"></a-grid-helper>
+        <a-entity id="menu" position="0 1.5 -0.7" rotation="-20 0 0">
+            <a-plane color="#222" width="0.6" height="0.4" opacity="0.9">
+                <a-text id="status-text" value="1. Click Start Audio\non computer screen\n2. Then click Calibrate" 
+                        align="center" position="0 0.1 0.01" width="0.5"></a-text>
+                
+                <a-gui-button id="calib-btn" class="clickable" geometry="primitive: plane; width: 0.4; height: 0.08" 
+                             material="color: #444" position="0 -0.1 0.02"
+                             event-set__mouseenter="material.color: #666"
+                             event-set__mouseleave="material.color: #444">
+                    <a-text value="START CALIBRATION" align="center" width="0.4"></a-text>
+                </a-gui-button>
+            </a-plane>
+        </a-entity>
 
-        <a-entity id="leftHand" laser-controls="hand: left" raycaster="objects: .key; far: 0.1"></a-entity>
-        <a-entity id="rightHand" laser-controls="hand: right" raycaster="objects: .key; far: 0.1"></a-entity>
-        
-        <a-sphere id="markerL" radius="0.02" color="red" visible="false"></a-sphere>
-        <a-sphere id="markerR" radius="0.02" color="blue" visible="false"></a-sphere>
+        <a-entity id="rig">
+            <a-camera position="0 1.6 0">
+                <a-cursor raycaster="objects: .clickable, .key"></a-cursor>
+            </a-camera>
+            
+            <a-entity id="leftHand" laser-controls="hand: left" raycaster="objects: .clickable, .key; far: 5"></a-entity>
+            <a-entity id="rightHand" laser-controls="hand: right" raycaster="objects: .clickable, .key; far: 5"></a-entity>
+        </a-entity>
+
+        <a-sphere id="markerL" radius="0.015" color="red" visible="false"></a-sphere>
+        <a-sphere id="markerR" radius="0.015" color="blue" visible="false"></a-sphere>
     </a-scene>
 
     <script>
+        // --- AUDIO ENGINE ---
         let audioCtx = null;
         let player = new WebAudioFontPlayer();
         let pianoInstrument = _tone_0000_Aspirin_sf2_file;
-        
-        let calibStep = 0; // 0: none, 1: Left Key, 2: Right Key
-        let posL = new THREE.Vector3();
-        let posR = new THREE.Vector3();
 
-        function initAudio() {
+        // Unlock audio via screen click (Browser requirement)
+        window.addEventListener('click', () => {
             if (!audioCtx) {
                 audioCtx = new (window.AudioContext || window.webkitAudioContext)();
                 player.loader.decodeAfterLoading(audioCtx, '_tone_0000_Aspirin_sf2_file');
-                document.getElementById('status').innerText = "Audio Ready. Click Calibrate.";
-            }
-        }
-
-        function startCalibration() {
-            calibStep = 1;
-            document.getElementById('status').innerHTML = "Step 1: Touch your <span class='step'>REAL LOW A</span> and pull the Right Trigger.";
-        }
-
-        // Listen for trigger clicks on Quest controllers
-        window.addEventListener('triggerdown', function (evt) {
-            if (calibStep === 0) return;
-
-            // Get the controller position
-            let controllerPos = evt.target.object3D.position;
-
-            if (calibStep === 1) {
-                posL.copy(controllerPos);
-                document.getElementById('markerL').setAttribute('position', posL);
-                document.getElementById('markerL').setAttribute('visible', 'true');
-                calibStep = 2;
-                document.getElementById('status').innerHTML = "Step 2: Touch your <span class='step'>REAL HIGH C</span> and pull Trigger.";
-            } 
-            else if (calibStep === 2) {
-                posR.copy(controllerPos);
-                document.getElementById('markerR').setAttribute('position', posR);
-                document.getElementById('markerR').setAttribute('visible', 'true');
-                applyCalibration();
-                calibStep = 0;
-                document.getElementById('status').innerText = "Calibration Complete!";
+                document.getElementById('status-text').setAttribute('value', 'Audio Ready!\nClick START CALIBRATION below');
             }
         });
 
+        // --- CALIBRATION LOGIC ---
+        let calibStep = 0; 
+        let posL = new THREE.Vector3();
+        let posR = new THREE.Vector3();
+
+        const statusText = document.getElementById('status-text');
+        const calibBtn = document.getElementById('calib-btn');
+
+        calibBtn.addEventListener('click', () => {
+            calibStep = 1;
+            statusText.setAttribute('value', 'STEP 1:\nTouch your REAL LOW A\nand pull Trigger');
+        });
+
+        // Track trigger pulls for calibration
+        window.addEventListener('triggerdown', (evt) => {
+            if (calibStep === 0) return;
+
+            // Get controller position in world space
+            let controllerPos = new THREE.Vector3();
+            evt.target.object3D.getWorldPosition(controllerPos);
+
+            if (calibStep === 1) {
+                posL.copy(controllerPos);
+                showMarker('markerL', posL);
+                calibStep = 2;
+                statusText.setAttribute('value', 'STEP 2:\nTouch your REAL HIGH C\nand pull Trigger');
+            } 
+            else if (calibStep === 2) {
+                posR.copy(controllerPos);
+                showMarker('markerR', posR);
+                applyCalibration();
+                calibStep = 0;
+                statusText.setAttribute('value', 'CALIBRATED!\nGo play your piano.');
+                setTimeout(() => { document.getElementById('menu').setAttribute('visible', 'false'); }, 2000);
+            }
+        });
+
+        function showMarker(id, pos) {
+            const m = document.getElementById(id);
+            m.setAttribute('position', pos);
+            m.setAttribute('visible', 'true');
+        }
+
         function applyCalibration() {
             const wrapper = document.querySelector('#piano-wrapper');
-            
-            // 1. Position the piano at the Left Marker
             wrapper.object3D.position.copy(posL);
 
-            // 2. Calculate Distance and Angle
             let distance = posL.distanceTo(posR);
             let direction = new THREE.Vector3().subVectors(posR, posL);
-            
-            // 3. Rotate piano to match the angle of your real piano
             let angle = Math.atan2(direction.x, direction.z);
             wrapper.object3D.rotation.y = angle - Math.PI/2;
 
-            // 4. Build the keys scaled to that distance
-            createPiano(distance);
+            buildPiano(distance);
         }
 
-        function createPiano(totalWidth) {
+        // --- PIANO GENERATION ---
+        function buildPiano(totalWidth) {
             const container = document.querySelector('#piano-keys');
-            container.innerHTML = ''; // Clear old keys
+            container.innerHTML = ''; 
             
             const whiteKeyCount = 52;
             const keyWidth = totalWidth / whiteKeyCount;
             const blackKeyPattern = [1, 1, 0, 1, 1, 1, 0];
-            
-            let currentMidi = 21; // A0
+            let currentMidi = 21; 
 
+            // White Keys
             for (let i = 0; i < whiteKeyCount; i++) {
-                let key = document.createElement('a-box');
-                key.setAttribute('class', 'key');
-                key.setAttribute('width', keyWidth * 0.9);
-                key.setAttribute('height', 0.05);
-                key.setAttribute('depth', 0.2);
-                key.setAttribute('position', `${i * keyWidth} 0 0`);
-                key.setAttribute('piano-key', `midi: ${currentMidi}`);
-                container.appendChild(key);
-
+                createKey(container, i * keyWidth, 0, 0, keyWidth * 0.9, 0.04, 0.2, 'white', currentMidi);
                 let note = currentMidi % 12;
                 currentMidi += ([4, 11].includes(note)) ? 1 : 2;
             }
 
-            // Logic for black keys (simplified for alignment)
+            // Black Keys
             currentMidi = 22;
             for (let i = 0; i < 51; i++) {
                 let octavePos = (i + 5) % 7;
                 if (blackKeyPattern[octavePos] === 1) {
-                    let bKey = document.createElement('a-box');
-                    bKey.setAttribute('width', keyWidth * 0.6);
-                    bKey.setAttribute('height', 0.07);
-                    bKey.setAttribute('depth', 0.12);
-                    bKey.setAttribute('position', `${(i + 0.5) * keyWidth} 0.02 -0.05`);
-                    bKey.setAttribute('color', 'black');
-                    bKey.setAttribute('piano-key', `midi: ${currentMidi}`);
-                    container.appendChild(bKey);
+                    createKey(container, (i + 0.5) * keyWidth, 0.02, -0.05, keyWidth * 0.6, 0.06, 0.12, 'black', currentMidi);
                 }
                 let note = currentMidi % 12;
                 currentMidi += ([1, 3, 6, 8, 10].includes(note)) ? 2 : 1;
             }
         }
 
+        function createKey(parent, x, y, z, w, h, d, color, midi) {
+            let key = document.createElement('a-box');
+            key.setAttribute('class', 'key');
+            key.setAttribute('position', `${x} ${y} ${z}`);
+            key.setAttribute('width', w);
+            key.setAttribute('height', h);
+            key.setAttribute('depth', d);
+            key.setAttribute('color', color);
+            key.setAttribute('piano-key', `midi: ${midi}; originalColor: ${color}`);
+            parent.appendChild(key);
+        }
+
+        // --- INTERACTIVE KEY COMPONENT ---
         AFRAME.registerComponent('piano-key', {
-            schema: { midi: { default: 60 } },
+            schema: { midi: {type: 'int'}, originalColor: {type: 'string'} },
             init: function () {
                 this.el.addEventListener('mousedown', () => {
+                    if (!audioCtx) return;
                     player.queueWaveTable(audioCtx, audioCtx.destination, pianoInstrument, audioCtx.currentTime, this.data.midi, 1.0);
-                    this.el.setAttribute('color', 'yellow');
-                    setTimeout(() => this.el.setAttribute('color', this.el.getAttribute('color') === 'black' ? 'black' : 'white'), 200);
+                    
+                    // Visual feedback
+                    this.el.setAttribute('color', '#FFD700');
+                    this.el.object3D.position.y -= 0.01;
+                    setTimeout(() => {
+                        this.el.setAttribute('color', this.data.originalColor);
+                        this.el.object3D.position.y += 0.01;
+                    }, 200);
                 });
             }
         });
