@@ -5,6 +5,16 @@
 <title>VR MIDI Piano Trainer</title>
 <meta name="description" content="VR MIDI Piano Trainer — PC VR Edition">
 
+<!-- WebXR polyfill — makes VR button appear even without native WebXR -->
+<script src="https://cdn.jsdelivr.net/npm/webxr-polyfill@latest/build/webxr-polyfill.js"></script>
+<script>
+  // Install polyfill immediately, before A-Frame loads
+  if (!navigator.xr) {
+    const polyfill = new WebXRPolyfill();
+    console.log('WebXR polyfill installed');
+  }
+</script>
+
 <!-- A-Frame 1.5 -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/aframe/1.5.0/aframe.min.js"></script>
 
@@ -84,6 +94,56 @@
 .si-d:hover{background:#7f1d1d;color:#fca5a5;}
 #snewbtn{margin-top:8px;width:100%;padding:6px;background:#065f46;color:#6ee7b7;border:none;border-radius:7px;cursor:pointer;font-size:.76rem;font-weight:700;}
 #snewbtn:disabled{opacity:.3;cursor:not-allowed;}
+
+/* ── Force A-Frame VR button to always be visible ── */
+.a-enter-vr {
+  display:block !important;
+  visibility:visible !important;
+  opacity:1 !important;
+  pointer-events:all !important;
+}
+.a-enter-vr-button {
+  display:block !important;
+  visibility:visible !important;
+}
+
+/* ── Our own big manual Enter VR button ── */
+#enter-vr-btn {
+  position:fixed;
+  bottom:20px; left:50%; transform:translateX(-50%);
+  z-index:9999;
+  padding:14px 36px;
+  background:linear-gradient(135deg,#7c3aed,#4f46e5);
+  color:#fff; font-family:'Segoe UI',sans-serif;
+  font-size:1.1rem; font-weight:700;
+  border:none; border-radius:50px;
+  cursor:pointer;
+  box-shadow:0 0 30px rgba(124,58,237,0.6), 0 4px 20px rgba(0,0,0,0.5);
+  letter-spacing:.5px;
+  transition:all .15s;
+  display:flex; align-items:center; gap:10px;
+}
+#enter-vr-btn:hover {
+  background:linear-gradient(135deg,#8b5cf6,#6366f1);
+  box-shadow:0 0 40px rgba(139,92,246,0.8), 0 4px 24px rgba(0,0,0,0.5);
+  transform:translateX(-50%) scale(1.04);
+}
+#enter-vr-btn.in-vr {
+  background:linear-gradient(135deg,#065f46,#047857);
+  box-shadow:0 0 30px rgba(6,95,70,0.6);
+}
+
+/* ── WebXR status panel ── */
+#xr-status {
+  position:fixed; bottom:75px; left:50%; transform:translateX(-50%);
+  z-index:9999; font-family:'Segoe UI',sans-serif;
+  font-size:.75rem; color:#888;
+  background:rgba(13,13,26,.9); border:1px solid #333;
+  border-radius:10px; padding:6px 16px;
+  text-align:center; white-space:nowrap;
+}
+#xr-status.ok { color:#86efac; border-color:#1a3a2a; }
+#xr-status.err { color:#f87171; border-color:#4a1a1a; }
 </style>
 </head>
 <body>
@@ -110,8 +170,13 @@
   </div>
   <div class="pill hand-pill lh">LH: <span id="lhn">—</span></div>
   <div class="pill hand-pill rh">RH: <span id="rhn">—</span></div>
-  <div class="pill" id="vrtip">🥽 Enter VR → bottom-right</div>
+  <div class="pill" id="vrtip" style="cursor:pointer" onclick="tryEnterVR()">🥽 Enter VR</div>
 </div>
+
+<!-- Big manual Enter VR button -->
+<button id="enter-vr-btn" onclick="tryEnterVR()">🥽 Enter VR</button>
+<!-- XR support status -->
+<div id="xr-status">Checking WebXR support…</div>
 
 <div id="smodal">
   <div id="sbox">
@@ -135,10 +200,12 @@
 ════════════════════════════════════════ -->
 <a-scene
   id="scene"
-  vr-mode-ui="enabled:true"
+  vr-mode-ui="enabled:true;enterVRButton:#aframe-vr-button"
   renderer="antialias:true;colorManagement:true;physicallyCorrectLights:true"
   background="color:#040409"
   shadow="type:pcfsoft"
+  xr-mode-ui="enabled:true;XRMode:vr"
+  webxr="requiredFeatures:local-floor;optionalFeatures:bounded-floor,hand-tracking"
 >
 
 <!-- ── Assets (off-screen canvases as textures) ── -->
@@ -998,6 +1065,86 @@ document.getElementById('sslider').addEventListener('input',()=>{
   onSplitChange();
 });
 
+// ── Manual Enter VR — tries every method available ─────────────
+window.tryEnterVR = async function() {
+  const scene  = document.getElementById('scene');
+  const btn    = document.getElementById('enter-vr-btn');
+  const status = document.getElementById('xr-status');
+
+  btn.textContent = '⏳ Entering VR…';
+
+  // Method 1: A-Frame's built-in enter VR
+  if (scene && scene.enterVR) {
+    try {
+      await scene.enterVR();
+      btn.textContent = '✅ In VR';
+      btn.classList.add('in-vr');
+      status.textContent = '✅ VR session active';
+      status.className = 'ok';
+
+      // Hide button once inside VR
+      scene.addEventListener('enter-vr', () => {
+        btn.style.display = 'none';
+        status.style.display = 'none';
+      });
+      scene.addEventListener('exit-vr', () => {
+        btn.style.display = 'flex';
+        btn.textContent = '🥽 Enter VR';
+        btn.classList.remove('in-vr');
+        status.style.display = 'block';
+      });
+      return;
+    } catch(e) {
+      console.warn('A-Frame enterVR failed:', e);
+    }
+  }
+
+  // Method 2: Raw WebXR API
+  if (navigator.xr) {
+    try {
+      const supported = await navigator.xr.isSessionSupported('immersive-vr');
+      if (supported) {
+        const session = await navigator.xr.requestSession('immersive-vr', {
+          requiredFeatures: ['local-floor'],
+          optionalFeatures: ['bounded-floor', 'hand-tracking']
+        });
+        // Hand off to A-Frame
+        if (scene && scene.xrSession === undefined) {
+          scene.xrSession = session;
+        }
+        btn.textContent = '✅ VR Session Started';
+        btn.classList.add('in-vr');
+        status.textContent = '✅ Raw WebXR session started';
+        status.className = 'ok';
+        return;
+      }
+    } catch(e) {
+      console.warn('Raw WebXR failed:', e.message);
+      status.textContent = `❌ ${e.message}`;
+      status.className = 'err';
+    }
+  }
+
+  // Method 3: Click A-Frame's own hidden button as fallback
+  const aBtn = document.querySelector('.a-enter-vr-button') ||
+               document.querySelector('[class*="enter-vr"]');
+  if (aBtn) {
+    aBtn.click();
+    btn.textContent = '🥽 Enter VR';
+    return;
+  }
+
+  // All methods failed — show diagnostic
+  btn.textContent = '🥽 Enter VR';
+  status.className = 'err';
+
+  if (!navigator.xr) {
+    status.textContent = '❌ WebXR not found. Are you using Chrome or Edge?';
+  } else {
+    status.textContent = '❌ No VR headset detected. Connect headset → refresh page → try again.';
+  }
+};
+
 // ── Render loop ────────────────────────────────────────────────
 function loop(){ drawRoll(); requestAnimationFrame(loop); }
 
@@ -1007,8 +1154,48 @@ document.querySelector('a-scene').addEventListener('loaded',()=>{
   drawRoll(); drawStaff(); drawInfo(); drawCtrl();
   setRec('idle');
   loop();
+
+  // ── Force A-Frame's VR button visible regardless of device detection ──
+  const scene = document.getElementById('scene');
+
+  // Patch: override A-Frame's checkHeadsetConnected to always return true
+  if (scene.xrSession === undefined) {
+    try {
+      scene.checkHeadsetConnected = () => true;
+    } catch(e) {}
+  }
+
+  // Make built-in button visible if it exists
+  setTimeout(() => {
+    const aBtn = document.querySelector('.a-enter-vr');
+    if (aBtn) {
+      aBtn.style.cssText = 'display:block!important;visibility:visible!important;opacity:1!important;';
+    }
+  }, 1000);
+
+  // ── WebXR status check ──
+  const xrStatusEl = document.getElementById('xr-status');
+  const enterBtn   = document.getElementById('enter-vr-btn');
+
+  if (navigator.xr) {
+    navigator.xr.isSessionSupported('immersive-vr').then(supported => {
+      if (supported) {
+        xrStatusEl.textContent = '✅ VR headset detected — ready to enter!';
+        xrStatusEl.className = 'ok';
+        enterBtn.style.boxShadow = '0 0 40px rgba(134,239,172,0.7), 0 4px 20px rgba(0,0,0,0.5)';
+      } else {
+        xrStatusEl.textContent = '⚠️ WebXR supported but no VR headset found — connect headset and refresh';
+        xrStatusEl.className = 'err';
+      }
+    }).catch(() => {
+      xrStatusEl.textContent = '⚠️ WebXR check failed — try refreshing with headset connected';
+      xrStatusEl.className = 'err';
+    });
+  } else {
+    xrStatusEl.textContent = '❌ WebXR not available — use Chrome or Edge';
+    xrStatusEl.className = 'err';
+  }
 });
 </script>
 </body>
 </html>
-
