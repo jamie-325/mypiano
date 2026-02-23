@@ -1,1201 +1,252 @@
 <!DOCTYPE html>
 <html>
 <head>
-<meta charset="UTF-8">
-<title>VR MIDI Piano Trainer</title>
-<meta name="description" content="VR MIDI Piano Trainer — PC VR Edition">
-
-<!-- WebXR polyfill — makes VR button appear even without native WebXR -->
-<script src="https://cdn.jsdelivr.net/npm/webxr-polyfill@latest/build/webxr-polyfill.js"></script>
-<script>
-  // Install polyfill immediately, before A-Frame loads
-  if (!navigator.xr) {
-    const polyfill = new WebXRPolyfill();
-    console.log('WebXR polyfill installed');
-  }
-</script>
-
-<!-- A-Frame 1.5 -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/aframe/1.5.0/aframe.min.js"></script>
-
-<style>
-/* ── 2D HUD (visible outside VR only) ─────────────────────── */
-#hud {
-  position:fixed; top:0; left:0; right:0; z-index:9999;
-  display:flex; gap:8px; align-items:center; flex-wrap:wrap;
-  padding:8px 14px;
-  background:linear-gradient(to bottom,rgba(0,0,0,.88),transparent);
-  font-family:'Segoe UI',sans-serif;
-  pointer-events:none;
-}
-#hud>*{pointer-events:all;}
-
-.pill {
-  display:flex; align-items:center; gap:6px;
-  background:rgba(13,13,26,.9); border:1px solid #333;
-  border-radius:20px; padding:4px 12px; font-size:.78rem; color:#aaa;
-}
-#sdot{width:8px;height:8px;border-radius:50%;background:#ef4444;transition:background .3s;}
-#sdot.on{background:#22c55e;}
-#sdot.wait{background:#f59e0b;animation:bl 1s infinite;}
-
-@keyframes bl{0%,100%{opacity:1}50%{opacity:.2}}
-@keyframes rp{0%,100%{opacity:1}50%{opacity:.45}}
-
-.btn {
-  padding:5px 15px; border:none; border-radius:8px; font-size:.8rem;
-  font-weight:700; cursor:pointer; transition:all .12s;
-}
-.btn:disabled{opacity:.3;cursor:not-allowed;}
-#br{background:#dc2626;color:#fff;}
-#br.recording{animation:rp .75s infinite;box-shadow:0 0 14px rgba(220,38,38,.7);}
-#br:hover:not(:disabled){background:#ef4444;}
-#bs{background:#374151;color:#e0e0ff;}
-#bs:hover:not(:disabled){background:#4b5563;}
-#bp{background:#7c3aed;color:#fff;}
-#bp:hover:not(:disabled){background:#8b5cf6;}
-#bp.playing{box-shadow:0 0 14px rgba(124,58,237,.7);}
-#bc{background:#1c1c2e;color:#888;}
-#bc:hover:not(:disabled){background:#374151;color:#e0e0ff;}
-
-#rtimer{font-family:'Courier New',monospace;font-size:.85rem;color:#e0e0ff;font-weight:bold;min-width:48px;}
-#rdot{width:8px;height:8px;border-radius:50%;background:#333;}
-#rdot.r{background:#dc2626;animation:bl .7s infinite;}
-#rdot.p{background:#7c3aed;animation:bl .7s infinite;}
-
-#split-ctl{display:flex;align-items:center;gap:6px;}
-#sslider{width:80px;accent-color:#a78bfa;}
-#sval{color:#a78bfa;font-family:'Courier New',monospace;font-size:.75rem;min-width:34px;}
-
-.hand-pill.lh{color:#7dd3fc;border-color:#1a2a4a;}
-.hand-pill.rh{color:#86efac;border-color:#1a3a2a;}
-
-#vrtip{margin-left:auto;font-size:.7rem;color:#555;}
-
-/* Save modal */
-#smodal{display:none;position:fixed;inset:0;z-index:10000;background:rgba(0,0,0,.75);align-items:center;justify-content:center;}
-#smodal.open{display:flex;}
-#sbox{background:#13131f;border:1px solid #444;border-radius:14px;padding:24px;display:flex;flex-direction:column;gap:12px;min-width:300px;}
-#sbox h3{color:#a78bfa;}
-#sinput{background:#08080f;border:1px solid #333;border-radius:8px;padding:8px 12px;color:#e0e0ff;font-size:.9rem;}
-.sbtn-row{display:flex;gap:8px;}
-#sok{background:#065f46;color:#6ee7b7;padding:8px 18px;border:none;border-radius:8px;cursor:pointer;font-weight:700;}
-#scan{background:#374151;color:#aaa;padding:8px 18px;border:none;border-radius:8px;cursor:pointer;}
-
-/* Saved panel */
-#spanel{position:fixed;bottom:14px;right:14px;z-index:9998;background:rgba(13,13,26,.95);border:1px solid #333;border-radius:12px;padding:12px;max-width:270px;max-height:240px;overflow-y:auto;font-family:'Segoe UI',sans-serif;display:none;}
-#spanel.show{display:block;}
-#spanel h4{font-size:.72rem;color:#a78bfa;margin-bottom:8px;letter-spacing:.6px;text-transform:uppercase;}
-.si{display:flex;align-items:center;gap:6px;padding:5px 0;border-bottom:1px solid #1e1e30;font-size:.78rem;}
-.si-n{flex:1;color:#e0e0ff;} .si-m{color:#444;font-size:.7rem;}
-.si-p{background:#7c3aed;color:#fff;padding:3px 9px;border:none;border-radius:5px;cursor:pointer;font-size:.72rem;}
-.si-p:hover{background:#8b5cf6;}
-.si-d{background:#1c1c2e;color:#555;padding:3px 9px;border:none;border-radius:5px;cursor:pointer;font-size:.72rem;}
-.si-d:hover{background:#7f1d1d;color:#fca5a5;}
-#snewbtn{margin-top:8px;width:100%;padding:6px;background:#065f46;color:#6ee7b7;border:none;border-radius:7px;cursor:pointer;font-size:.76rem;font-weight:700;}
-#snewbtn:disabled{opacity:.3;cursor:not-allowed;}
-
-/* ── Force A-Frame VR button to always be visible ── */
-.a-enter-vr {
-  display:block !important;
-  visibility:visible !important;
-  opacity:1 !important;
-  pointer-events:all !important;
-}
-.a-enter-vr-button {
-  display:block !important;
-  visibility:visible !important;
-}
-
-/* ── Our own big manual Enter VR button ── */
-#enter-vr-btn {
-  position:fixed;
-  bottom:20px; left:50%; transform:translateX(-50%);
-  z-index:9999;
-  padding:14px 36px;
-  background:linear-gradient(135deg,#7c3aed,#4f46e5);
-  color:#fff; font-family:'Segoe UI',sans-serif;
-  font-size:1.1rem; font-weight:700;
-  border:none; border-radius:50px;
-  cursor:pointer;
-  box-shadow:0 0 30px rgba(124,58,237,0.6), 0 4px 20px rgba(0,0,0,0.5);
-  letter-spacing:.5px;
-  transition:all .15s;
-  display:flex; align-items:center; gap:10px;
-}
-#enter-vr-btn:hover {
-  background:linear-gradient(135deg,#8b5cf6,#6366f1);
-  box-shadow:0 0 40px rgba(139,92,246,0.8), 0 4px 24px rgba(0,0,0,0.5);
-  transform:translateX(-50%) scale(1.04);
-}
-#enter-vr-btn.in-vr {
-  background:linear-gradient(135deg,#065f46,#047857);
-  box-shadow:0 0 30px rgba(6,95,70,0.6);
-}
-
-/* ── WebXR status panel ── */
-#xr-status {
-  position:fixed; bottom:75px; left:50%; transform:translateX(-50%);
-  z-index:9999; font-family:'Segoe UI',sans-serif;
-  font-size:.75rem; color:#888;
-  background:rgba(13,13,26,.9); border:1px solid #333;
-  border-radius:10px; padding:6px 16px;
-  text-align:center; white-space:nowrap;
-}
-#xr-status.ok { color:#86efac; border-color:#1a3a2a; }
-#xr-status.err { color:#f87171; border-color:#4a1a1a; }
-</style>
+<meta charset="utf-8" />
+<title>VR MIDI Recorder</title>
+<script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
 </head>
+
 <body>
 
-<!-- ════════════════════════════════════════
-     2D HUD  (desktop / pre-VR)
-════════════════════════════════════════ -->
-<div id="hud">
-  <div class="pill">
-    <div id="sdot" class="wait"></div>
-    <span id="stext">Connecting MIDI…</span>
-  </div>
-  <button class="btn" id="br">⏺ Record</button>
-  <button class="btn" id="bs" disabled>⏹ Stop</button>
-  <button class="btn" id="bp" disabled>▶ Play</button>
-  <button class="btn" id="bc" disabled>🗑</button>
-  <div class="pill">
-    <div id="rdot"></div>
-    <span id="rtimer">0:00.0</span>
-  </div>
-  <div class="pill" id="split-ctl">
-    ✂️ <input id="sslider" type="range" min="36" max="84" value="60">
-    <span id="sval">C4</span>
-  </div>
-  <div class="pill hand-pill lh">LH: <span id="lhn">—</span></div>
-  <div class="pill hand-pill rh">RH: <span id="rhn">—</span></div>
-  <div class="pill" id="vrtip" style="cursor:pointer" onclick="tryEnterVR()">🥽 Enter VR</div>
-</div>
+<a-scene id="scene" xr-mode-ui="enabled:true" background="color:#111">
 
-<!-- Big manual Enter VR button -->
-<button id="enter-vr-btn" onclick="tryEnterVR()">🥽 Enter VR</button>
-<!-- XR support status -->
-<div id="xr-status">Checking WebXR support…</div>
+  <!-- Treble Staff -->
+  <a-entity id="trebleLane" position="0 2.4 -3"></a-entity>
 
-<div id="smodal">
-  <div id="sbox">
-    <h3>💾 Save Recording</h3>
-    <input id="sinput" type="text" placeholder="Name…" maxlength="40">
-    <div class="sbtn-row">
-      <button id="sok">Save</button>
-      <button id="scan">Cancel</button>
-    </div>
-  </div>
-</div>
+  <!-- Bass Staff -->
+  <a-entity id="bassLane" position="0 1.2 -3"></a-entity>
 
-<div id="spanel">
-  <h4>💾 Saved Recordings</h4>
-  <div id="slist"></div>
-  <button id="snewbtn" disabled>+ Save current</button>
-</div>
-
-<!-- ════════════════════════════════════════
-     A-FRAME SCENE
-════════════════════════════════════════ -->
-<a-scene
-  id="scene"
-  vr-mode-ui="enabled:true;enterVRButton:#aframe-vr-button"
-  renderer="antialias:true;colorManagement:true;physicallyCorrectLights:true"
-  background="color:#040409"
-  shadow="type:pcfsoft"
-  xr-mode-ui="enabled:true;XRMode:vr"
-  webxr="requiredFeatures:local-floor;optionalFeatures:bounded-floor,hand-tracking"
->
-
-<!-- ── Assets (off-screen canvases as textures) ── -->
-<a-assets timeout="10000">
-  <canvas id="cv-roll"  width="1024" height="256"></canvas>
-  <canvas id="cv-staff" width="1024" height="256"></canvas>
-  <canvas id="cv-ctrl"  width="512"  height="512"></canvas>
-  <canvas id="cv-info"  width="512"  height="256"></canvas>
-</a-assets>
-
-<!-- ── Lighting ── -->
-<a-light type="ambient"     color="#10102a" intensity="2.5"></a-light>
-<a-light type="directional" color="#ccd4ff" intensity="0.8" position="1 5 2" castShadow="true"></a-light>
-<a-light type="point" id="pl-stage" color="#a78bfa" intensity="1.2" position="0 3.5 -2" distance="12" decay="2"></a-light>
-<a-light type="point" color="#1a3a5a" intensity="0.6" position="-4 2 0" distance="8"></a-light>
-<a-light type="point" color="#1a5a3a" intensity="0.6" position="4 2 0"  distance="8"></a-light>
-
-<!-- ── Floor ── -->
-<a-plane rotation="-90 0 0" width="30" height="30"
-  material="color:#060610;roughness:0.95;metalness:0.05"
-  shadow="receive:true">
-</a-plane>
-<!-- Grid lines on floor -->
-<a-entity id="floor-grid" position="0 0.002 0" rotation="-90 0 0">
-  <a-plane width="30" height="30"
-    material="color:#0f0f28;wireframe:true;opacity:0.12;transparent:true">
-  </a-plane>
-</a-entity>
-
-<!-- Horizon glow ring -->
-<a-torus position="0 0.01 0" radius="12" radius-tubular="0.08"
-  material="color:#1a1060;emissive:#1a1060;emissiveIntensity:1;opacity:0.4;transparent:true">
-</a-torus>
-
-<!-- ── Back wall / stage feel ── -->
-<a-plane position="0 5 -8" width="20" height="10"
-  material="color:#080818;roughness:0.9">
-</a-plane>
-
-<!-- ════════════════════════════════════════
-     PIANO CABINET + KEYS
-     Standing height: piano surface at y=0.80
-     Player stands at z=0, faces -z
-════════════════════════════════════════ -->
-<a-entity id="piano-root" position="0 0.80 -1.4">
-
-  <!-- Cabinet body -->
-  <a-box width="7.4" height="0.22" depth="0.75" position="0 -0.11 0"
-    material="color:#0c0c1c;roughness:0.6;metalness:0.4" shadow="cast:true;receive:true">
-  </a-box>
-  <!-- Cabinet front lip -->
-  <a-box width="7.4" height="0.08" depth="0.06" position="0 0.0 0.38"
-    material="color:#141428;roughness:0.5;metalness:0.5">
-  </a-box>
-  <!-- Piano lid/fallboard -->
-  <a-box width="7.4" height="0.04" depth="0.72" position="0 0.13 0"
-    material="color:#080814;roughness:0.3;metalness:0.6">
-  </a-box>
-  <!-- Side cheeks -->
-  <a-box width="0.08" height="0.22" depth="0.75" position="3.66 -0.11 0"
-    material="color:#0a0a18;roughness:0.5;metalness:0.4">
-  </a-box>
-  <a-box width="0.08" height="0.22" depth="0.75" position="-3.66 -0.11 0"
-    material="color:#0a0a18;roughness:0.5;metalness:0.4">
-  </a-box>
-  <!-- Legs -->
-  <a-box width="0.1" height="0.78" depth="0.1" position="-3.4 -0.50 0.28"
-    material="color:#080810;roughness:0.6"></a-box>
-  <a-box width="0.1" height="0.78" depth="0.1" position="3.4 -0.50 0.28"
-    material="color:#080810;roughness:0.6"></a-box>
-  <a-box width="0.1" height="0.78" depth="0.1" position="0 -0.50 -0.28"
-    material="color:#080810;roughness:0.6"></a-box>
-
-</a-entity>
-
-<!-- Keys injected by JS into #piano-root -->
-
-<!-- ════════════════════════════════════════
-     PIANO ROLL SCREEN  — floating above piano
-     Position: y=2.5 (comfortable head height in VR)
-════════════════════════════════════════ -->
-<a-plane id="roll-screen"
-  position="0 2.5 -2.1"
-  rotation="-8 0 0"
-  width="5.8" height="1.48"
-  material="src:#cv-roll;color:#ffffff;roughness:1;opacity:1">
-</a-plane>
-<!-- Screen bezel -->
-<a-box position="0 2.5 -2.11" rotation="-8 0 0"
-  width="5.98" height="1.64" depth="0.045"
-  material="color:#111130;roughness:0.4;metalness:0.7">
-</a-box>
-<!-- Glow strip under screen -->
-<a-box position="0 1.78 -1.88" width="5.8" height="0.02" depth="0.04"
-  material="color:#7c3aed;emissive:#7c3aed;emissiveIntensity:1;opacity:0.6;transparent:true">
-</a-box>
-<a-light type="point" color="#7c3aed" intensity="0.5" position="0 2.5 -1.8" distance="4" decay="2"></a-light>
-
-<!-- ════════════════════════════════════════
-     GRAND STAFF PANEL — left of piano
-════════════════════════════════════════ -->
-<a-plane id="staff-screen"
-  position="-4.0 1.78 -1.8"
-  rotation="0 28 0"
-  width="3.0" height="0.76"
-  material="src:#cv-staff;color:#ffffff;roughness:1;opacity:1">
-</a-plane>
-<a-box position="-4.0 1.78 -1.81" rotation="0 28 0"
-  width="3.14" height="0.88" depth="0.045"
-  material="color:#0a1428;roughness:0.4;metalness:0.6">
-</a-box>
-<a-light type="point" color="#38bdf8" intensity="0.3" position="-3.5 2.0 -1.3" distance="4" decay="2"></a-light>
-
-<!-- ════════════════════════════════════════
-     INFO PANEL — right of piano
-════════════════════════════════════════ -->
-<a-plane id="info-screen"
-  position="4.0 1.78 -1.8"
-  rotation="0 -28 0"
-  width="1.9" height="0.76"
-  material="src:#cv-info;color:#ffffff;roughness:1;opacity:1">
-</a-plane>
-<a-box position="4.0 1.78 -1.81" rotation="0 -28 0"
-  width="2.02" height="0.88" depth="0.045"
-  material="color:#0a1a0e;roughness:0.4;metalness:0.6">
-</a-box>
-<a-light type="point" color="#86efac" intensity="0.25" position="3.5 2.0 -1.3" distance="4" decay="2"></a-light>
-
-<!-- ════════════════════════════════════════
-     VR CONTROL PANEL — floating left, reachable
-     Holds Record/Stop/Play/Clear + split
-════════════════════════════════════════ -->
-<a-plane id="ctrl-screen"
-  position="-1.5 1.38 -0.5"
-  rotation="0 35 0"
-  width="1.28" height="1.28"
-  material="src:#cv-ctrl;color:#ffffff;roughness:1;opacity:1"
-  class="clickable" id="ctrl-panel-plane">
-</a-plane>
-<a-box position="-1.5 1.38 -0.51" rotation="0 35 0"
-  width="1.36" height="1.36" depth="0.04"
-  material="color:#0f0820;roughness:0.4;metalness:0.6">
-</a-box>
-<a-light type="point" color="#a78bfa" intensity="0.4" position="-1.2 1.5 -0.2" distance="3" decay="2"></a-light>
-
-<!-- Invisible hit-zone buttons on control panel (VR clickable) -->
-<!-- These are positioned in the same plane as ctrl-screen -->
-<!-- Record -->
-<a-plane class="clickable vr-btn" id="vrb-rec"
-  position="-1.96 1.65 -0.32" rotation="0 35 0"
-  width="0.45" height="0.18"
-  material="color:#dc2626;opacity:0.001;transparent:true">
-</a-plane>
-<!-- Stop -->
-<a-plane class="clickable vr-btn" id="vrb-stop"
-  position="-1.47 1.65 -0.61" rotation="0 35 0"
-  width="0.45" height="0.18"
-  material="color:#374151;opacity:0.001;transparent:true">
-</a-plane>
-<!-- Play -->
-<a-plane class="clickable vr-btn" id="vrb-play"
-  position="-1.96 1.42 -0.32" rotation="0 35 0"
-  width="0.45" height="0.18"
-  material="color:#7c3aed;opacity:0.001;transparent:true">
-</a-plane>
-<!-- Clear -->
-<a-plane class="clickable vr-btn" id="vrb-clear"
-  position="-1.47 1.42 -0.61" rotation="0 35 0"
-  width="0.45" height="0.18"
-  material="color:#374151;opacity:0.001;transparent:true">
-</a-plane>
-<!-- Split – (lower split) -->
-<a-plane class="clickable vr-btn" id="vrb-split-dn"
-  position="-1.83 1.18 -0.43" rotation="0 35 0"
-  width="0.25" height="0.2"
-  material="color:#a78bfa;opacity:0.001;transparent:true">
-</a-plane>
-<!-- Split + (raise split) -->
-<a-plane class="clickable vr-btn" id="vrb-split-up"
-  position="-1.55 1.18 -0.58" rotation="0 35 0"
-  width="0.25" height="0.2"
-  material="color:#a78bfa;opacity:0.001;transparent:true">
-</a-plane>
-
-<!-- ════════════════════════════════════════
-     SPARK PARTICLE POOL
-════════════════════════════════════════ -->
-<a-entity id="sparks"></a-entity>
-
-<!-- ════════════════════════════════════════
-     PLAYER RIG  (camera + controllers)
-     Standing height — y=0, camera at y=1.6 inside rig
-════════════════════════════════════════ -->
-<a-entity id="rig" position="0 0 0.8">
-
-  <!-- Camera -->
-  <a-entity id="cam" camera look-controls="pointerLockEnabled:false" wasd-controls="fly:false;speed:2" position="0 1.6 0">
-    <!-- Desktop cursor (mouse) -->
-    <a-cursor
-      id="cursor"
-      raycaster="objects:.clickable;far:20"
-      material="color:#a78bfa;opacity:0.85"
-      fuse="false"
-      geometry="primitive:ring;radiusInner:0.008;radiusOuter:0.013">
-    </a-cursor>
+  <!-- Staff Labels -->
+  <a-entity position="-2 2.6 -3"
+            text="value:𝄞 Treble; width:4; color:#fff">
   </a-entity>
 
-  <!-- LEFT hand controller (Oculus Touch / Valve Index) -->
-  <a-entity id="left-ctrl"
-    laser-controls="hand:left"
-    raycaster="objects:.clickable;far:20;showLine:true;lineColor:#7dd3fc;lineOpacity:0.7"
-    line="color:#7dd3fc;opacity:0.7"
-    oculus-touch-controls="hand:left"
-    vive-controls="hand:left"
-    windows-motion-controls="hand:left">
+  <a-entity position="-2 1.4 -3"
+            text="value:𝄢 Bass; width:4; color:#fff">
   </a-entity>
 
-  <!-- RIGHT hand controller -->
-  <a-entity id="right-ctrl"
-    laser-controls="hand:right"
-    raycaster="objects:.clickable;far:20;showLine:true;lineColor:#86efac;lineOpacity:0.7"
-    line="color:#86efac;opacity:0.7"
-    oculus-touch-controls="hand:right"
-    vive-controls="hand:right"
-    windows-motion-controls="hand:right">
+  <!-- Record Button -->
+  <a-box id="recordBtn"
+         position="-1 3 -3"
+         depth="0.2" height="0.4" width="1"
+         color="#880000">
+  </a-box>
+
+  <a-entity position="-1 3 -2.8"
+            text="value:RECORD; align:center; width:4; color:#fff">
   </a-entity>
 
-</a-entity>
+  <!-- Play Button -->
+  <a-box id="playBtn"
+         position="1 3 -3"
+         depth="0.2" height="0.4" width="1"
+         color="#006600">
+  </a-box>
 
-<!-- Sky -->
-<a-sky color="#020207"></a-sky>
+  <a-entity position="1 3 -2.8"
+            text="value:PLAY; align:center; width:4; color:#fff">
+  </a-entity>
+
+  <!-- Piano -->
+  <a-entity id="piano" position="0 0.6 -3"></a-entity>
+
+  <a-camera position="0 1.6 0">
+    <a-cursor fuse="true" fuse-timeout="700"></a-cursor>
+  </a-camera>
 
 </a-scene>
 
-<!-- ════════════════════════════════════════════════════════
-     JAVASCRIPT
-════════════════════════════════════════════════════════ -->
 <script>
-'use strict';
+window.addEventListener("load", () => {
 
-// ── Music helpers ──────────────────────────────────────────────
-const NOTE_NAMES = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
-const MIDI_LO=36, MIDI_HI=84;
-function nn(m){ return NOTE_NAMES[m%12]+(Math.floor(m/12)-1); }
-function isBlk(m){ return [1,3,6,8,10].includes(m%12); }
-function mFreq(m){ return (440*Math.pow(2,(m-69)/12)).toFixed(2); }
-function fmtT(ms){
-  const s=Math.floor(ms/1000),mn=Math.floor(s/60),ds=Math.floor((ms%1000)/100);
-  return `${mn}:${String(s%60).padStart(2,'0')}.${ds}`;
-}
+const scene = document.querySelector("#scene");
+const piano = document.querySelector("#piano");
+const trebleLane = document.querySelector("#trebleLane");
+const bassLane = document.querySelector("#bassLane");
+const recordBtn = document.querySelector("#recordBtn");
+const playBtn = document.querySelector("#playBtn");
 
-// ── State ──────────────────────────────────────────────────────
-let splitMidi=60;
-function isRH(m){ return m>=splitMidi; }
+const START_NOTE = 21;
+const END_NOTE = 108;
+const WHITE_WIDTH = 0.12;
+const MIDDLE_C = 60;
+const SCROLL_SPEED = 0.01;
 
-window.midiState={activeNotes:{},rightHand:{},leftHand:{},lastNote:null,lastEvent:null,splitPoint:60};
-
-// ── Split control ──────────────────────────────────────────────
-const sslider=document.getElementById('sslider');
-const sval=document.getElementById('sval');
-sslider.addEventListener('input',()=>{ splitMidi=+sslider.value; sval.textContent=nn(splitMidi); onSplitChange(); });
-
-function onSplitChange(){
-  window.midiState.splitPoint=splitMidi;
-  sval.textContent=nn(splitMidi);
-  sslider.value=splitMidi;
-  rebuildPiano();
-  drawCtrlCanvas();
-}
-
-// ── Piano 3D keys ──────────────────────────────────────────────
-const pianoRoot=document.getElementById('piano-root');
-const key3D={};
-const keyPos={};  // midi → world x (relative to piano-root)
-
-const WW=0.138, WH=0.09, WD=0.56; // white key dims
-const BW=0.085, BH=0.14, BD=0.34; // black key dims
-const GAP=0.004;
-
-function countWhites(lo,hi){ let n=0; for(let m=lo;m<=hi;m++) if(!isBlk(m)) n++; return n; }
-const TOTAL_WH=countWhites(MIDI_LO,MIDI_HI);
-const PIANO_TOTAL_W=TOTAL_WH*(WW+GAP);
-const X0=-PIANO_TOTAL_W/2+(WW+GAP)/2;
-
-function rebuildPiano(){
-  // Remove old key entities
-  Object.values(key3D).forEach(e=>{ if(e.parentNode) e.parentNode.removeChild(e); });
-  Object.keys(key3D).forEach(k=>delete key3D[k]);
-  Object.keys(keyPos).forEach(k=>delete keyPos[k]);
-
-  let wi=0;
-  for(let m=MIDI_LO;m<=MIDI_HI;m++){
-    const blk=isBlk(m);
-    const e=document.createElement('a-entity');
-    e.setAttribute('class','clickable');
-    e.dataset.midi=m;
-
-    if(!blk){
-      const x=X0+wi*(WW+GAP);
-      keyPos[m]=x;
-      const box=document.createElement('a-box');
-      box.setAttribute('width',WW); box.setAttribute('height',WH); box.setAttribute('depth',WD);
-      box.setAttribute('position',`${x.toFixed(4)} ${WH/2} 0`);
-      box.setAttribute('material',`color:#efefef;roughness:0.25;metalness:0.05`);
-      box.setAttribute('shadow','cast:true');
-      e.appendChild(box);
-
-      // C label
-      if(m%12===0){
-        const lbl=document.createElement('a-text');
-        lbl.setAttribute('value',nn(m));
-        lbl.setAttribute('position',`${x.toFixed(4)} 0.005 0.22`);
-        lbl.setAttribute('rotation','-90 0 0');
-        lbl.setAttribute('align','center');
-        lbl.setAttribute('color','#888');
-        lbl.setAttribute('width','0.4');
-        pianoRoot.appendChild(lbl);
-      }
-      wi++;
-    } else {
-      // Black key sits between previous and current white
-      const x=X0+(wi-0.5)*(WW+GAP);
-      keyPos[m]=x;
-      const box=document.createElement('a-box');
-      box.setAttribute('width',BW); box.setAttribute('height',BH); box.setAttribute('depth',BD);
-      box.setAttribute('position',`${x.toFixed(4)} ${WH+BH/2-0.01} -0.09`);
-      box.setAttribute('material',`color:#111118;roughness:0.35;metalness:0.4`);
-      box.setAttribute('shadow','cast:true');
-      e.appendChild(box);
-    }
-
-    e.addEventListener('click',()=>{
-      noteOn(m,90); setTimeout(()=>noteOff(m),420);
-    });
-
-    pianoRoot.appendChild(e);
-    key3D[m]=e;
-  }
-
-  // Split marker beam
-  let old=document.getElementById('split-beam');
-  if(old) old.parentNode.removeChild(old);
-  const sm=document.createElement('a-box');
-  sm.id='split-beam';
-  // Find nearest white key x
-  let tx=splitMidi; while(isBlk(tx)&&tx>MIDI_LO) tx--;
-  const bx=keyPos[tx]!==undefined ? keyPos[tx]-WW/2-GAP/2 : 0;
-  sm.setAttribute('width','0.025'); sm.setAttribute('height',BH+0.04); sm.setAttribute('depth',WD+0.04);
-  sm.setAttribute('position',`${bx.toFixed(4)} ${(WH+BH/2).toFixed(4)} 0`);
-  sm.setAttribute('material','color:#fbbf24;emissive:#fbbf24;emissiveIntensity:0.7;opacity:0.88;transparent:true');
-  pianoRoot.appendChild(sm);
-}
-
-// key visual state
-function setKeyVisual(midi,on,pb=false){
-  const e=key3D[midi]; if(!e) return;
-  const box=e.querySelector('a-box'); if(!box) return;
-  const blk=isBlk(midi), rh=isRH(midi);
-  if(on){
-    const c=rh?(pb?'#22c55e':'#86efac'):(pb?'#0ea5e9':'#7dd3fc');
-    box.setAttribute('material',`color:${c};emissive:${c};emissiveIntensity:0.55;roughness:0.2`);
-    // depress white key
-    if(!blk){
-      const p=box.getAttribute('position'); if(p){
-        box.setAttribute('position',`${p.x??p.split(' ')[0]} ${((WH/2)-0.018).toFixed(4)} ${p.z??p.split(' ')[2]??0}`);
-      }
-    }
-  } else {
-    const c=blk?'#111118':'#efefef';
-    box.setAttribute('material',`color:${c};roughness:${blk?0.35:0.25};metalness:${blk?0.4:0.05};emissiveIntensity:0`);
-    if(!blk){
-      const p=box.getAttribute('position'); if(p){
-        box.setAttribute('position',`${p.x??p.split(' ')[0]} ${(WH/2).toFixed(4)} ${p.z??p.split(' ')[2]??0}`);
-      }
-    }
-  }
-}
-
-// ── Sparks ─────────────────────────────────────────────────────
-const sparkEl=document.getElementById('sparks');
-function spawnSpark(midi){
-  const kx=keyPos[midi]; if(kx===undefined) return;
-  const wx=kx, wy=0.80+0.22, wz=-1.4;
-  const rh=isRH(midi);
-  const col=rh?'#86efac':'#7dd3fc';
-  for(let i=0;i<6;i++){
-    const s=document.createElement('a-sphere');
-    const ox=(Math.random()-.5)*.35, oy=Math.random()*.5+.1, oz=(Math.random()-.5)*.12;
-    s.setAttribute('radius','0.022');
-    s.setAttribute('position',`${wx} ${wy} ${wz}`);
-    s.setAttribute('material',`color:${col};emissive:${col};emissiveIntensity:1.2;opacity:1;transparent:true`);
-    s.setAttribute('animation',`property:position;to:${(wx+ox).toFixed(3)} ${(wy+oy).toFixed(3)} ${(wz+oz).toFixed(3)};dur:700;easing:easeOutCubic`);
-    s.setAttribute('animation__f',`property:material.opacity;to:0;dur:650;easing:easeInQuad`);
-    s.setAttribute('animation__s',`property:scale;to:0.1 0.1 0.1;dur:650;easing:easeInQuad`);
-    sparkEl.appendChild(s);
-    setTimeout(()=>{ if(s.parentNode) s.parentNode.removeChild(s); },750);
-  }
-}
-
-// ── Canvas textures ─────────────────────────────────────────────
-const cvRoll =document.getElementById('cv-roll');
-const cvStaff=document.getElementById('cv-staff');
-const cvCtrl =document.getElementById('cv-ctrl');
-const cvInfo =document.getElementById('cv-info');
-const rcx=cvRoll.getContext('2d'), scx=cvStaff.getContext('2d'),
-      ccx=cvCtrl.getContext('2d'), icx=cvInfo.getContext('2d');
-
-// ─── Piano Roll canvas ─────────────────────────────────────────
-const RW=cvRoll.width, RH=cvRoll.height;
-const LIVE_WIN=6000;
-let liveNotes=[], rollMode='live';
-
-function rowY(midi){ return RH-((midi-MIDI_LO+1)/(MIDI_HI-MIDI_LO+2))*RH; }
-function rowH(){ return RH/(MIDI_HI-MIDI_LO+2); }
-
-function drawRoll(){
-  rcx.fillStyle='#050510'; rcx.fillRect(0,0,RW,RH);
-  const RhH=rowH();
-  // Row backgrounds
-  for(let m=MIDI_LO;m<=MIDI_HI;m++){
-    rcx.fillStyle=isBlk(m)?'#09091c':'#0e0e22';
-    rcx.fillRect(0,rowY(m),RW,RhH);
-    if(m%12===0){
-      rcx.strokeStyle='rgba(255,255,255,0.07)'; rcx.lineWidth=1;
-      rcx.beginPath(); rcx.moveTo(0,rowY(m)); rcx.lineTo(RW,rowY(m)); rcx.stroke();
-      rcx.fillStyle='rgba(255,255,255,.22)'; rcx.font='bold 11px sans-serif';
-      rcx.textAlign='left'; rcx.textBaseline='top';
-      rcx.fillText(nn(m),3,rowY(m)+1);
-    }
-  }
-  // Split line
-  const sy=rowY(splitMidi);
-  rcx.strokeStyle='rgba(251,191,36,0.55)'; rcx.lineWidth=2; rcx.setLineDash([6,5]);
-  rcx.beginPath(); rcx.moveTo(0,sy); rcx.lineTo(RW,sy); rcx.stroke();
-  rcx.setLineDash([]);
-  // Watermark
-  rcx.fillStyle='rgba(167,139,250,0.5)'; rcx.font='bold 13px sans-serif';
-  rcx.textAlign='right'; rcx.textBaseline='top';
-  rcx.fillText('PIANO ROLL',RW-6,4);
-  rcx.fillStyle='rgba(134,239,172,0.55)'; rcx.fillText('RH ■',RW-6,20);
-  rcx.fillStyle='rgba(125,211,252,0.55)'; rcx.fillText('LH ■',RW-6,36);
-
-  const now=performance.now();
-  const pxMs=RW/LIVE_WIN;
-
-  if(rollMode==='live'){
-    liveNotes=liveNotes.filter(n=>n.endMs===null||(now-n.endMs)<LIVE_WIN+600);
-    liveNotes.forEach(n=>{
-      const et=n.endMs??now, st=n.startMs;
-      if(now-st>LIVE_WIN+600) return;
-      const xR=RW-(now-et)*pxMs, xL=RW-(now-st)*pxMs;
-      const nw=Math.max(2,xR-xL);
-      const y=rowY(n.midi);
-      const alpha=n.endMs?Math.max(.1,.45-(now-n.endMs)/(LIVE_WIN*.55)):0.4+0.6*(n.vel/127);
-      rcx.fillStyle=isRH(n.midi)?`rgba(134,239,172,${alpha})`:`rgba(125,211,252,${alpha})`;
-      rcx.beginPath(); rcx.roundRect(Math.max(0,xL),y+1,Math.min(nw,RW),Math.max(2,RhH-2),2); rcx.fill();
-      if(!n.endMs){
-        rcx.fillStyle=isRH(n.midi)?'rgba(210,255,220,1)':'rgba(190,235,255,1)';
-        rcx.fillRect(Math.min(RW-3,xR),y+1,3,Math.max(2,RhH-2));
-      }
-    });
-  } else if(rollMode==='recorded'&&recording.length){
-    const dur=Math.max(recording[recording.length-1].time,1);
-    const pxM=RW/dur;
-    const act={};
-    recording.forEach(ev=>{
-      if(ev.type==='on') act[ev.midi]={t:ev.time,v:ev.velocity};
-      else if(ev.type==='off'&&act[ev.midi]){
-        const s=act[ev.midi];
-        const x=s.t*pxM, nw=Math.max(2,(ev.time-s.t)*pxM);
-        const y=rowY(ev.midi);
-        const alpha=0.45+0.55*(s.v/127);
-        rcx.fillStyle=isRH(ev.midi)?`rgba(134,239,172,${alpha})`:`rgba(125,211,252,${alpha})`;
-        rcx.beginPath(); rcx.roundRect(x,y+1,nw,Math.max(2,RhH-2),2); rcx.fill();
-        rcx.fillStyle=isRH(ev.midi)?'rgba(200,255,210,.55)':'rgba(175,225,255,.55)';
-        rcx.fillRect(x,y+1,nw,2);
-        delete act[ev.midi];
-      }
-    });
-    // Playhead
-    if(isPlaying&&playStartAt){
-      const frac=Math.min((now-playStartAt)/dur,1);
-      rcx.strokeStyle='rgba(167,139,250,0.9)'; rcx.lineWidth=2.5; rcx.setLineDash([]);
-      rcx.beginPath(); rcx.moveTo(frac*RW,0); rcx.lineTo(frac*RW,RH); rcx.stroke();
-    }
-    // Time grid
-    for(let s2=0;s2<=Math.ceil(dur/1000);s2++){
-      const x=s2*1000*pxM;
-      rcx.strokeStyle='rgba(255,255,255,0.07)'; rcx.lineWidth=1;
-      rcx.beginPath(); rcx.moveTo(x,0); rcx.lineTo(x,RH); rcx.stroke();
-      rcx.fillStyle='rgba(255,255,255,0.3)'; rcx.font='9px sans-serif';
-      rcx.textAlign='left'; rcx.textBaseline='bottom';
-      rcx.fillText(s2+'s',x+2,RH-2);
-    }
-  }
-  // Push to texture
-  document.getElementById('roll-screen').setAttribute('material','src:#cv-roll');
-}
-
-// ─── Grand Staff canvas ────────────────────────────────────────
-const SW=cvStaff.width, SH=cvStaff.height;
-const DIAT=[0,0,1,1,2,3,3,4,4,5,5,6];
-function diat(m){ return (Math.floor(m/12)-1)*7+DIAT[m%12]; }
-const TREF=diat(64), BREF=diat(43);
-const STOP=28, SSP=16, SLNS=5;
-function snY(midi,clef){ return STOP+(SLNS-1)*SSP-(diat(midi)-(clef==='t'?TREF:BREF))*(SSP/2); }
-
-function drawHalfStaff(x0,w,clef,notes,col,scol,lbl){
-  const sB=STOP+(SLNS-1)*SSP;
-  scx.strokeStyle='#3a3a60'; scx.lineWidth=1.5;
-  for(let i=0;i<SLNS;i++){
-    const y=STOP+i*SSP;
-    scx.beginPath(); scx.moveTo(x0+38,y); scx.lineTo(x0+w-6,y); scx.stroke();
-  }
-  scx.font=clef==='t'?'bold 74px serif':'bold 46px serif';
-  scx.fillStyle='#a78bfa'; scx.textAlign='center'; scx.textBaseline='middle';
-  scx.fillText(clef==='t'?'𝄞':'𝄢', x0+19, clef==='t'?STOP+SSP*1.8:STOP+SSP*1.2);
-  scx.fillStyle=col; scx.font='bold 12px sans-serif';
-  scx.textAlign='center'; scx.textBaseline='bottom';
-  scx.fillText(lbl, x0+w/2+10, SH-4);
-
-  if(!notes.length){
-    scx.fillStyle='#252540'; scx.font='11px sans-serif';
-    scx.textAlign='center'; scx.textBaseline='middle';
-    scx.fillText('—',x0+w/2+16,STOP+SSP*2); return;
-  }
-  const NR=7;
-  notes.forEach((midi,i)=>{
-    const xn=x0+w/2+14+i*4, yn=snY(midi,clef);
-    const sharp=NOTE_NAMES[midi%12].includes('#');
-    scx.strokeStyle='#3a3a60'; scx.lineWidth=1.5;
-    if(yn<STOP){ for(let ly=STOP-SSP;ly>=yn-1;ly-=SSP){scx.beginPath();scx.moveTo(xn-NR-3,ly);scx.lineTo(xn+NR+3,ly);scx.stroke();} }
-    if(yn>sB){  for(let ly=sB+SSP;ly<=yn+1;ly+=SSP){scx.beginPath();scx.moveTo(xn-NR-3,ly);scx.lineTo(xn+NR+3,ly);scx.stroke();} }
-    scx.fillStyle=sharp?scol:col; scx.strokeStyle='#050510'; scx.lineWidth=1;
-    scx.beginPath(); scx.ellipse(xn,yn,NR,NR*.68,-.3,0,Math.PI*2); scx.fill(); scx.stroke();
-    scx.strokeStyle=col; scx.lineWidth=1.6; scx.beginPath();
-    if(yn>=STOP+SSP*2){scx.moveTo(xn+NR-1,yn);scx.lineTo(xn+NR-1,yn-SSP*3);}
-    else{scx.moveTo(xn-NR+1,yn);scx.lineTo(xn-NR+1,yn+SSP*3);}
-    scx.stroke();
-    if(sharp){
-      scx.strokeStyle=scol; scx.lineWidth=1.3;
-      const sx=xn-NR-11;
-      [-3,3].forEach(dx=>{scx.beginPath();scx.moveTo(sx+dx,yn-7);scx.lineTo(sx+dx,yn+7);scx.stroke();});
-      [-2.5,3].forEach(dy=>{scx.beginPath();scx.moveTo(sx-5,yn+dy);scx.lineTo(sx+5,yn+dy);scx.stroke();});
-    }
-    scx.fillStyle='#444'; scx.font='9px sans-serif'; scx.textAlign='center'; scx.textBaseline='top';
-    scx.fillText(nn(midi),xn,sB+7);
-  });
-}
-
-function drawStaff(){
-  scx.fillStyle='#070714'; scx.fillRect(0,0,SW,SH);
-  const half=SW/2-4;
-  scx.strokeStyle='#252545'; scx.lineWidth=1;
-  scx.beginPath(); scx.moveTo(half+8,0); scx.lineTo(half+8,SH); scx.stroke();
-  const lh=Object.keys(window.midiState.leftHand).map(Number).sort((a,b)=>a-b);
-  const rh=Object.keys(window.midiState.rightHand).map(Number).sort((a,b)=>a-b);
-  drawHalfStaff(0,   half,'b',lh,'#7dd3fc','#38bdf8','◀ LEFT HAND');
-  drawHalfStaff(half+8,half,'t',rh,'#86efac','#4ade80','RIGHT HAND ▶');
-  document.getElementById('staff-screen').setAttribute('material','src:#cv-staff');
-}
-
-// ─── Info canvas ───────────────────────────────────────────────
-function drawInfo(){
-  const W=cvInfo.width, H=cvInfo.height;
-  icx.fillStyle='#060c0a'; icx.fillRect(0,0,W,H);
-  icx.fillStyle='#a78bfa'; icx.font='bold 18px sans-serif';
-  icx.textAlign='center'; icx.textBaseline='top';
-  icx.fillText('HAND MONITOR',W/2,8);
-
-  icx.fillStyle='#333'; icx.font='12px sans-serif';
-  icx.fillText(`Split: ${nn(splitMidi)}`,W/2,34);
-
-  const lhM=Object.keys(window.midiState.leftHand).map(Number).sort((a,b)=>b-a);
-  const rhM=Object.keys(window.midiState.rightHand).map(Number).sort((a,b)=>b-a);
-
-  icx.fillStyle='#7dd3fc'; icx.font='bold 13px sans-serif';
-  icx.fillText('◀ LEFT HAND',W/2,56);
-  icx.font='bold 55px sans-serif';
-  icx.fillText(lhM.length?nn(lhM[0]):'—',W/2,72);
-  if(lhM.length>1){ icx.font='11px sans-serif'; icx.fillStyle='#3a6a8a'; icx.fillText(lhM.map(nn).join(' · '),W/2,138); }
-
-  icx.fillStyle='#86efac'; icx.font='bold 13px sans-serif';
-  icx.fillText('RIGHT HAND ▶',W/2,158);
-  icx.font='bold 55px sans-serif';
-  icx.fillText(rhM.length?nn(rhM[0]):'—',W/2,174);
-  if(rhM.length>1){ icx.font='11px sans-serif'; icx.fillStyle='#3a8a5a'; icx.fillText(rhM.map(nn).join(' · '),W/2,238); }
-
-  if(isRecording){ icx.fillStyle='rgba(220,38,38,.85)'; icx.font='bold 13px sans-serif'; icx.fillText('⏺ RECORDING',W/2,H-16); }
-  else if(isPlaying){ icx.fillStyle='rgba(124,58,237,.85)'; icx.font='bold 13px sans-serif'; icx.fillText('▶ PLAYING',W/2,H-16); }
-
-  document.getElementById('info-screen').setAttribute('material','src:#cv-info');
-}
-
-// ─── Control Panel canvas ──────────────────────────────────────
-// Drawn as a UI panel the player can point at in VR
-function drawCtrl(){
-  const W=cvCtrl.width, H=cvCtrl.height;
-  ccx.fillStyle='#0a0818'; ccx.fillRect(0,0,W,H);
-  // Title
-  ccx.fillStyle='#a78bfa'; ccx.font='bold 24px sans-serif';
-  ccx.textAlign='center'; ccx.textBaseline='top';
-  ccx.fillText('VR CONTROLS',W/2,14);
-  ccx.strokeStyle='#2a2060'; ccx.lineWidth=1.5;
-  ccx.beginPath(); ccx.moveTo(20,46); ccx.lineTo(W-20,46); ccx.stroke();
-
-  function ctrlBtn(x,y,w,h,col,label,active){
-    ccx.fillStyle=active?col:col+'55';
-    ccx.beginPath(); ccx.roundRect(x,y,w,h,8); ccx.fill();
-    if(active){ ccx.shadowColor=col; ccx.shadowBlur=12; ccx.fill(); ccx.shadowBlur=0; }
-    ccx.fillStyle='#ffffff'; ccx.font='bold 20px sans-serif';
-    ccx.textAlign='center'; ccx.textBaseline='middle';
-    ccx.fillText(label,x+w/2,y+h/2);
-  }
-
-  const BW2=200, BH2=72, BX1=20, BX2=W/2+10, BY1=60, BY2=150;
-  ctrlBtn(BX1,BY1,BW2,BH2,'#dc2626','⏺  RECORD', isRecording);
-  ctrlBtn(BX2,BY1,BW2,BH2,'#374151','⏹  STOP',  false);
-  ctrlBtn(BX1,BY2,BW2,BH2,'#7c3aed','▶  PLAY',  isPlaying);
-  ctrlBtn(BX2,BY2,BW2,BH2,'#374151','🗑  CLEAR', false);
-
-  // Divider
-  ccx.strokeStyle='#1e1a3a'; ccx.lineWidth=1.5;
-  ccx.beginPath(); ccx.moveTo(20,238); ccx.lineTo(W-20,238); ccx.stroke();
-
-  // Split control
-  ccx.fillStyle='#888'; ccx.font='18px sans-serif'; ccx.textAlign='left';
-  ccx.fillText('✂️  SPLIT POINT', 24, 262);
-  ccx.fillStyle='#a78bfa'; ccx.font='bold 24px sans-serif';
-  ccx.textAlign='center';
-  ccx.fillText(nn(splitMidi), W/2, 298);
-  // - + buttons
-  ctrlBtn(60,318,150,60,'#a78bfa','◀  Lower', false);
-  ctrlBtn(W-210,318,150,60,'#a78bfa','Raise  ▶', false);
-
-  // Status
-  ccx.strokeStyle='#1e1a3a'; ccx.lineWidth=1.5;
-  ccx.beginPath(); ccx.moveTo(20,396); ccx.lineTo(W-20,396); ccx.stroke();
-
-  ccx.fillStyle='#555'; ccx.font='16px sans-serif'; ccx.textAlign='center';
-  ccx.fillText('Timer', W/2, 416);
-  ccx.fillStyle=isRecording?'#ef4444':isPlaying?'#a78bfa':'#e0e0ff';
-  ccx.font='bold 32px Courier New,monospace';
-  ccx.fillText(recTimerTxt, W/2, 450);
-
-  if(isRecording){
-    ccx.fillStyle='rgba(220,38,38,.7)';ccx.beginPath();ccx.arc(40,455,10,0,Math.PI*2);ccx.fill();
-  }
-
-  document.getElementById('ctrl-screen').setAttribute('material','src:#cv-ctrl');
-}
-
-// ── Note on/off ────────────────────────────────────────────────
-function noteOn(midi,velocity,pb=false){
-  const rh=isRH(midi);
-  const data={name:nn(midi),velocity,frequency:+mFreq(midi),hand:rh?'rh':'lh'};
-  window.midiState.activeNotes[midi]=data;
-  if(rh) window.midiState.rightHand[midi]=data;
-  else   window.midiState.leftHand[midi]=data;
-  window.midiState.lastNote={midi,...data}; window.midiState.lastEvent='noteOn';
-  if(rollMode==='live') liveNotes.push({midi,startMs:performance.now(),endMs:null,vel:velocity});
-  if(isRecording) recording.push({time:performance.now()-recordStart,type:'on',midi,velocity});
-  setKeyVisual(midi,true,pb);
-  if(!pb) spawnSpark(midi);
-  // HUD
-  if(rh) document.getElementById('rhn').textContent=nn(midi);
-  else   document.getElementById('lhn').textContent=nn(midi);
-  drawInfo(); drawStaff();
-}
-
-function noteOff(midi,pb=false){
-  const rh=isRH(midi);
-  if(rollMode==='live'){
-    const ln=[...liveNotes].reverse().find(n=>n.midi===midi&&n.endMs===null);
-    if(ln) ln.endMs=performance.now();
-  }
-  if(isRecording) recording.push({time:performance.now()-recordStart,type:'off',midi});
-  delete window.midiState.activeNotes[midi];
-  delete window.midiState.rightHand[midi];
-  delete window.midiState.leftHand[midi];
-  window.midiState.lastEvent='noteOff';
-  setKeyVisual(midi,false,pb);
-  const rhM=Object.keys(window.midiState.rightHand);
-  const lhM=Object.keys(window.midiState.leftHand);
-  document.getElementById('rhn').textContent=rhM.length?nn(+rhM[rhM.length-1]):'—';
-  document.getElementById('lhn').textContent=lhM.length?nn(+lhM[lhM.length-1]):'—';
-  drawInfo(); drawStaff();
-}
-
-// ── Recorder ───────────────────────────────────────────────────
-let isRecording=false, isPlaying=false;
-let recordStart=null, recording=[], savedRecs=[];
-let playTimers=[], timerInt=null, playStartAt=null;
-let recTimerTxt='0:00.0';
-
-function fmtTimer(fn){
-  if(timerInt) clearInterval(timerInt);
-  timerInt=setInterval(()=>{
-    recTimerTxt=fmtT(fn());
-    document.getElementById('rtimer').textContent=recTimerTxt;
-    drawCtrl();
-  },100);
-}
-function stopTimer(){ if(timerInt){clearInterval(timerInt);timerInt=null;} }
-
-function setRec(state){
-  const br=document.getElementById('br'),bp=document.getElementById('bp');
-  const bs=document.getElementById('bs'),bc=document.getElementById('bc');
-  const rd=document.getElementById('rdot');
-  rd.className='';br.classList.remove('recording');bp.classList.remove('playing');
-  if(state==='recording'){
-    rd.classList.add('r'); br.classList.add('recording');
-    br.disabled=true;bs.disabled=false;bp.disabled=true;bc.disabled=true;
-  } else if(state==='playing'){
-    rd.classList.add('p'); bp.classList.add('playing');
-    br.disabled=true;bs.disabled=false;bp.disabled=true;bc.disabled=true;
-  } else {
-    br.disabled=false;bs.disabled=true;
-    bp.disabled=!recording.length;bc.disabled=!recording.length;
-  }
-  document.getElementById('snewbtn').disabled=!recording.length;
-  drawCtrl();
-}
-
-function doRecord(){
-  if(isPlaying) doStop();
-  recording=[]; recordStart=performance.now(); isRecording=true;
-  rollMode='live'; liveNotes=[];
-  setRec('recording'); fmtTimer(()=>performance.now()-recordStart);
-  drawInfo();
-}
-function doStop(){
-  if(isRecording){ isRecording=false; stopTimer();
-    const dur=recording.length?recording[recording.length-1].time:0;
-    recTimerTxt=fmtT(dur);
-    rollMode='recorded'; setRec('idle'); drawRoll(); drawInfo();
-    // show save modal
-    document.getElementById('smodal').classList.add('open');
-    document.getElementById('sinput').focus();
-  }
-  if(isPlaying){ isPlaying=false; playStartAt=null;
-    playTimers.forEach(t=>clearTimeout(t)); playTimers=[];
-    Object.keys(window.midiState.activeNotes).forEach(m=>noteOff(+m,true));
-    stopTimer();
-    const dur=recording.length?recording[recording.length-1].time:0;
-    recTimerTxt=fmtT(dur); document.getElementById('rtimer').textContent=recTimerTxt;
-    setRec('idle'); drawRoll(); drawInfo();
-  }
-}
-function doPlay(rec){
-  if(!rec||!rec.length) return;
-  isPlaying=true; rollMode='recorded'; playStartAt=performance.now();
-  const dur=rec[rec.length-1].time;
-  setRec('playing'); fmtTimer(()=>performance.now()-playStartAt); drawInfo();
-  playTimers=[];
-  rec.forEach(ev=>{
-    const t=setTimeout(()=>{
-      if(!isPlaying) return;
-      if(ev.type==='on') noteOn(ev.midi,ev.velocity,true);
-      else               noteOff(ev.midi,true);
-    },ev.time);
-    playTimers.push(t);
-  });
-  playTimers.push(setTimeout(()=>{ doStop(); },dur+400));
-}
-function doClear(){
-  if(isPlaying||isRecording) doStop();
-  recording=[]; liveNotes=[]; rollMode='live';
-  recTimerTxt='0:00.0'; document.getElementById('rtimer').textContent=recTimerTxt;
-  setRec('idle'); drawRoll(); drawInfo();
-}
-
-// 2D HUD buttons
-document.getElementById('br').addEventListener('click',doRecord);
-document.getElementById('bs').addEventListener('click',doStop);
-document.getElementById('bp').addEventListener('click',()=>doPlay(recording));
-document.getElementById('bc').addEventListener('click',doClear);
-
-// Save modal
-document.getElementById('sok').addEventListener('click',()=>{
-  if(!recording.length) return;
-  const inp=document.getElementById('sinput');
-  const name=inp.value.trim()||`Recording ${savedRecs.length+1}`;
-  savedRecs.push({name,duration:recording[recording.length-1].time,events:[...recording]});
-  inp.value=''; document.getElementById('smodal').classList.remove('open');
-  renderSaved();
-});
-document.getElementById('scan').addEventListener('click',()=>document.getElementById('smodal').classList.remove('open'));
-document.getElementById('snewbtn').addEventListener('click',()=>{
-  if(!recording.length) return;
-  document.getElementById('sinput').value='';
-  document.getElementById('smodal').classList.add('open');
-  document.getElementById('sinput').focus();
-});
-
-function renderSaved(){
-  const panel=document.getElementById('spanel');
-  const list=document.getElementById('slist');
-  panel.className=savedRecs.length?'show':'';
-  list.innerHTML='';
-  savedRecs.forEach((rec,i)=>{
-    const d=document.createElement('div'); d.className='si';
-    d.innerHTML=`<span class="si-n">🎵 ${rec.name}</span><span class="si-m">${fmtT(rec.duration)}</span>
-    <button class="si-p">▶</button><button class="si-d">🗑</button>`;
-    d.querySelector('.si-p').addEventListener('click',()=>{
-      if(isRecording||isPlaying) doStop();
-      recording=[...rec.events]; rollMode='recorded';
-      recTimerTxt=fmtT(rec.duration); document.getElementById('rtimer').textContent=recTimerTxt;
-      setRec('idle'); drawRoll();
-      setTimeout(()=>doPlay(recording),80);
-    });
-    d.querySelector('.si-d').addEventListener('click',()=>{ savedRecs.splice(i,1); renderSaved(); });
-    list.appendChild(d);
-  });
-}
-
-// ── VR button click handlers ───────────────────────────────────
-function hookVRBtn(id, fn){
-  const el=document.getElementById(id);
-  if(el) el.addEventListener('click', fn);
-}
-hookVRBtn('vrb-rec',   doRecord);
-hookVRBtn('vrb-stop',  doStop);
-hookVRBtn('vrb-play',  ()=>doPlay(recording));
-hookVRBtn('vrb-clear', doClear);
-hookVRBtn('vrb-split-dn', ()=>{ splitMidi=Math.max(36,splitMidi-1); onSplitChange(); });
-hookVRBtn('vrb-split-up', ()=>{ splitMidi=Math.min(84,splitMidi+1); onSplitChange(); });
-
-// ── MIDI ───────────────────────────────────────────────────────
-function onMIDI(ev){
-  const [st,note,vel]=ev.data, type=st&0xf0;
-  if(type===0x90&&vel>0) noteOn(note,vel);
-  else if(type===0x80||(type===0x90&&vel===0)) noteOff(note);
-}
-function setupMIDI(access){
-  function refresh(){
-    const ins=[...access.inputs.values()];
-    const dot=document.getElementById('sdot'), txt=document.getElementById('stext');
-    if(ins.length){ dot.className='on'; txt.textContent=ins.map(i=>i.name).join(', '); }
-    else { dot.className='wait'; txt.textContent='No MIDI device detected'; }
-    ins.forEach(i=>{i.onmidimessage=onMIDI;});
-  }
-  access.onstatechange=refresh; refresh();
-}
-if(navigator.requestMIDIAccess){
-  navigator.requestMIDIAccess({sysex:false}).then(setupMIDI).catch(e=>{
-    document.getElementById('sdot').style.background='#ef4444';
-    document.getElementById('stext').textContent=`MIDI denied: ${e.message}`;
-  });
-} else {
-  document.getElementById('stext').textContent='Web MIDI not supported — use Chrome/Edge';
-}
-
-// ── Split slider HUD ───────────────────────────────────────────
-document.getElementById('sslider').addEventListener('input',()=>{
-  splitMidi=+document.getElementById('sslider').value;
-  onSplitChange();
-});
-
-// ── Manual Enter VR — tries every method available ─────────────
-window.tryEnterVR = async function() {
-  const scene  = document.getElementById('scene');
-  const btn    = document.getElementById('enter-vr-btn');
-  const status = document.getElementById('xr-status');
-
-  btn.textContent = '⏳ Entering VR…';
-
-  // Method 1: A-Frame's built-in enter VR
-  if (scene && scene.enterVR) {
-    try {
-      await scene.enterVR();
-      btn.textContent = '✅ In VR';
-      btn.classList.add('in-vr');
-      status.textContent = '✅ VR session active';
-      status.className = 'ok';
-
-      // Hide button once inside VR
-      scene.addEventListener('enter-vr', () => {
-        btn.style.display = 'none';
-        status.style.display = 'none';
-      });
-      scene.addEventListener('exit-vr', () => {
-        btn.style.display = 'flex';
-        btn.textContent = '🥽 Enter VR';
-        btn.classList.remove('in-vr');
-        status.style.display = 'block';
-      });
-      return;
-    } catch(e) {
-      console.warn('A-Frame enterVR failed:', e);
-    }
-  }
-
-  // Method 2: Raw WebXR API
-  if (navigator.xr) {
-    try {
-      const supported = await navigator.xr.isSessionSupported('immersive-vr');
-      if (supported) {
-        const session = await navigator.xr.requestSession('immersive-vr', {
-          requiredFeatures: ['local-floor'],
-          optionalFeatures: ['bounded-floor', 'hand-tracking']
-        });
-        // Hand off to A-Frame
-        if (scene && scene.xrSession === undefined) {
-          scene.xrSession = session;
-        }
-        btn.textContent = '✅ VR Session Started';
-        btn.classList.add('in-vr');
-        status.textContent = '✅ Raw WebXR session started';
-        status.className = 'ok';
-        return;
-      }
-    } catch(e) {
-      console.warn('Raw WebXR failed:', e.message);
-      status.textContent = `❌ ${e.message}`;
-      status.className = 'err';
-    }
-  }
-
-  // Method 3: Click A-Frame's own hidden button as fallback
-  const aBtn = document.querySelector('.a-enter-vr-button') ||
-               document.querySelector('[class*="enter-vr"]');
-  if (aBtn) {
-    aBtn.click();
-    btn.textContent = '🥽 Enter VR';
-    return;
-  }
-
-  // All methods failed — show diagnostic
-  btn.textContent = '🥽 Enter VR';
-  status.className = 'err';
-
-  if (!navigator.xr) {
-    status.textContent = '❌ WebXR not found. Are you using Chrome or Edge?';
-  } else {
-    status.textContent = '❌ No VR headset detected. Connect headset → refresh page → try again.';
-  }
+window.midiState = {
+  activeNotes: {},
+  recorded: [],
+  recording: false,
+  playing: false
 };
 
-// ── Render loop ────────────────────────────────────────────────
-function loop(){ drawRoll(); requestAnimationFrame(loop); }
+let recordStart = 0;
+let playbackStart = 0;
 
-// ── Init ───────────────────────────────────────────────────────
-document.querySelector('a-scene').addEventListener('loaded',()=>{
-  rebuildPiano();
-  drawRoll(); drawStaff(); drawInfo(); drawCtrl();
-  setRec('idle');
-  loop();
+// ---------- BUILD PIANO ----------
+let whiteIndex = 0;
+const keyMap = {};
 
-  // ── Force A-Frame's VR button visible regardless of device detection ──
-  const scene = document.getElementById('scene');
+for (let n = START_NOTE; n <= END_NOTE; n++) {
 
-  // Patch: override A-Frame's checkHeadsetConnected to always return true
-  if (scene.xrSession === undefined) {
-    try {
-      scene.checkHeadsetConnected = () => true;
-    } catch(e) {}
+  const isBlack = [1,3,6,8,10].includes(n % 12);
+  const key = document.createElement("a-box");
+  key.dataset.note = n;
+
+  if (!isBlack) {
+    key.setAttribute("width", WHITE_WIDTH);
+    key.setAttribute("height", 0.2);
+    key.setAttribute("depth", 1);
+    key.setAttribute("color", "#fff");
+
+    key.setAttribute("position", {
+      x: whiteIndex * WHITE_WIDTH,
+      y: 0,
+      z: 0
+    });
+
+    whiteIndex++;
+  } else {
+    key.setAttribute("width", 0.07);
+    key.setAttribute("height", 0.15);
+    key.setAttribute("depth", 0.6);
+    key.setAttribute("color", "#000");
+
+    key.setAttribute("position", {
+      x: (whiteIndex - 1) * WHITE_WIDTH + WHITE_WIDTH/2,
+      y: 0.05,
+      z: -0.2
+    });
   }
 
-  // Make built-in button visible if it exists
-  setTimeout(() => {
-    const aBtn = document.querySelector('.a-enter-vr');
-    if (aBtn) {
-      aBtn.style.cssText = 'display:block!important;visibility:visible!important;opacity:1!important;';
-    }
-  }, 1000);
+  piano.appendChild(key);
+  keyMap[n] = key;
+}
 
-  // ── WebXR status check ──
-  const xrStatusEl = document.getElementById('xr-status');
-  const enterBtn   = document.getElementById('enter-vr-btn');
+piano.object3D.position.x = -(whiteIndex * WHITE_WIDTH)/2;
 
-  if (navigator.xr) {
-    navigator.xr.isSessionSupported('immersive-vr').then(supported => {
-      if (supported) {
-        xrStatusEl.textContent = '✅ VR headset detected — ready to enter!';
-        xrStatusEl.className = 'ok';
-        enterBtn.style.boxShadow = '0 0 40px rgba(134,239,172,0.7), 0 4px 20px rgba(0,0,0,0.5)';
-      } else {
-        xrStatusEl.textContent = '⚠️ WebXR supported but no VR headset found — connect headset and refresh';
-        xrStatusEl.className = 'err';
-      }
-    }).catch(() => {
-      xrStatusEl.textContent = '⚠️ WebXR check failed — try refreshing with headset connected';
-      xrStatusEl.className = 'err';
-    });
-  } else {
-    xrStatusEl.textContent = '❌ WebXR not available — use Chrome or Edge';
-    xrStatusEl.className = 'err';
+// ---------- RECORD BUTTON ----------
+recordBtn.addEventListener("click", () => {
+  window.midiState.recording = !window.midiState.recording;
+  recordBtn.setAttribute("color",
+    window.midiState.recording ? "#ff0000" : "#880000"
+  );
+
+  if (window.midiState.recording) {
+    window.midiState.recorded = [];
+    recordStart = performance.now();
   }
 });
+
+// ---------- PLAY BUTTON ----------
+playBtn.addEventListener("click", () => {
+  if (!window.midiState.recorded.length) return;
+
+  window.midiState.playing = true;
+  playbackStart = performance.now();
+
+  trebleLane.innerHTML = "";
+  bassLane.innerHTML = "";
+});
+
+// ---------- MIDI ----------
+navigator.requestMIDIAccess?.().then(access => {
+  access.inputs.forEach(input => {
+    input.onmidimessage = handleMIDI;
+  });
+});
+
+function handleMIDI(event) {
+  const [status, note, velocity] = event.data;
+  const type = status & 0xf0;
+
+  if (type === 0x90 && velocity > 0) noteOn(note, velocity);
+  if (type === 0x80 || (type === 0x90 && velocity === 0)) noteOff(note);
+}
+
+function noteOn(note, velocity) {
+
+  keyMap[note]?.setAttribute("color", "#ff4444");
+
+  window.midiState.activeNotes[note] = {
+    start: performance.now()
+  };
+
+  if (window.midiState.recording) {
+    window.midiState.activeNotes[note].recordStart =
+      (performance.now() - recordStart)/1000;
+  }
+}
+
+function noteOff(note) {
+
+  const isBlack = [1,3,6,8,10].includes(note % 12);
+  keyMap[note]?.setAttribute("color", isBlack ? "#000" : "#fff");
+
+  if (!window.midiState.activeNotes[note]) return;
+
+  if (window.midiState.recording) {
+    const duration =
+      (performance.now() - window.midiState.activeNotes[note].start)/1000;
+
+    window.midiState.recorded.push({
+      note,
+      start: window.midiState.activeNotes[note].recordStart,
+      duration
+    });
+  }
+
+  delete window.midiState.activeNotes[note];
+}
+
+// ---------- PLAYBACK LOOP ----------
+scene.addEventListener("tick", () => {
+
+  if (!window.midiState.playing) return;
+
+  const elapsed = (performance.now() - playbackStart)/1000;
+
+  window.midiState.recorded.forEach(n => {
+    if (!n.spawned && elapsed >= n.start) {
+      spawnNote(n);
+      n.spawned = true;
+    }
+  });
+
+  trebleLane.object3D.position.y -= SCROLL_SPEED;
+  bassLane.object3D.position.y -= SCROLL_SPEED;
+
+  const totalLength =
+    Math.max(...window.midiState.recorded.map(n => n.start+n.duration));
+
+  if (elapsed > totalLength) {
+    window.midiState.playing = false;
+    window.midiState.recorded.forEach(n => n.spawned = false);
+  }
+});
+
+function spawnNote(n) {
+
+  const lane = n.note >= MIDDLE_C ? trebleLane : bassLane;
+
+  const box = document.createElement("a-box");
+  box.setAttribute("width", 0.12);
+  box.setAttribute("height", n.duration * 2);
+  box.setAttribute("depth", 0.1);
+  box.setAttribute("color",
+    n.note >= MIDDLE_C ? "#00ffff" : "#ff00ff"
+  );
+
+  box.setAttribute("position", {
+    x: (n.note - MIDDLE_C)*0.12,
+    y: 0,
+    z: 0
+  });
+
+  lane.appendChild(box);
+}
+
+});
 </script>
+
 </body>
 </html>
