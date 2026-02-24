@@ -207,10 +207,23 @@
 ════════════════════════════════════ -->
 <a-scene background="color:#111" xr-mode-ui="enabled: true">
 
-  <!-- Camera -->
+  <!-- Camera (desktop) -->
   <a-camera position="0 1.6 2">
-    <a-cursor fuse="true" fuse-timeout="600"></a-cursor>
+    <a-cursor raycaster="objects: .clickable"
+              geometry="primitive:ring; radiusInner:0.01; radiusOuter:0.016"
+              material="color:#facc15; opacity:0.9; shader:flat">
+    </a-cursor>
   </a-camera>
+
+  <!-- VR Controllers — laser pointers targeting .clickable -->
+  <a-entity id="left-ctrl"
+    laser-controls="hand:left"
+    raycaster="objects: .clickable; far: 10; showLine: true; lineColor: #facc15; lineOpacity: 0.7">
+  </a-entity>
+  <a-entity id="right-ctrl"
+    laser-controls="hand:right"
+    raycaster="objects: .clickable; far: 10; showLine: true; lineColor: #ffffff; lineOpacity: 0.7">
+  </a-entity>
 
   <!-- Hit Line -->
   <a-plane id="hitline"
@@ -219,44 +232,126 @@
     color="#ffffff" opacity="0.7">
   </a-plane>
 
-  <!--
-    CAL-ROOT wraps both piano + roll.
-    Moving cal-root moves everything together,
-    so falling notes always align with the keys.
-  -->
+  <!-- CAL-ROOT wraps piano + roll so calibration moves them together -->
   <a-entity id="cal-root" position="0 0 0">
-
-    <!-- Piano Container -->
     <a-entity id="piano" position="0 0 -3"></a-entity>
-
-    <!-- Roll Container -->
     <a-entity id="roll"  position="0 0 -3"></a-entity>
-
-    <!-- Ghost overlay (wireframe, shown during calibration) -->
     <a-entity id="ghost" visible="false" position="0 0 -3"></a-entity>
-
   </a-entity>
 
-  <!-- VR Buttons (outside cal-root so they don't move) -->
-  <a-box id="btnRecord" position="-1.5 1.4 -2"
+  <!-- ═══ TRANSPORT BUTTONS ═══ -->
+  <a-box class="clickable" id="btnRecord" position="-1.5 1.4 -2"
     width="0.5" height="0.2" depth="0.1" color="#aa0000"></a-box>
-  <a-box id="btnStop"   position="-0.8 1.4 -2"
+  <a-entity position="-1.5 1.52 -1.94"
+    text="value:REC; align:center; width:2; color:#fff; shader:msdf"></a-entity>
+
+  <a-box class="clickable" id="btnStop" position="-0.8 1.4 -2"
     width="0.5" height="0.2" depth="0.1" color="#555"></a-box>
-  <a-box id="btnPlay"   position="-0.1 1.4 -2"
+  <a-entity position="-0.8 1.52 -1.94"
+    text="value:STOP; align:center; width:2; color:#fff; shader:msdf"></a-entity>
+
+  <a-box class="clickable" id="btnPlay" position="-0.1 1.4 -2"
     width="0.5" height="0.2" depth="0.1" color="#0066aa"></a-box>
+  <a-entity position="-0.1 1.52 -1.94"
+    text="value:PLAY; align:center; width:2; color:#fff; shader:msdf"></a-entity>
 
-  <a-entity position="-1.5 1.4 -1.9"
-    text="value:REC;  align:center; width:2; color:#fff"></a-entity>
-  <a-entity position="-0.8 1.4 -1.9"
-    text="value:STOP; align:center; width:2; color:#fff"></a-entity>
-  <a-entity position="-0.1 1.4 -1.9"
-    text="value:PLAY; align:center; width:2; color:#fff"></a-entity>
-
-  <!-- VR calibration button -->
-  <a-box id="btnCal" position="0.6 1.4 -2"
+  <!-- CAL toggle button -->
+  <a-box class="clickable" id="btnCal" position="0.6 1.4 -2"
     width="0.5" height="0.2" depth="0.1" color="#5a4a00"></a-box>
-  <a-entity position="0.6 1.4 -1.9"
-    text="value:CAL; align:center; width:2; color:#facc15"></a-entity>
+  <a-entity position="0.6 1.52 -1.94"
+    text="value:CAL; align:center; width:2; color:#facc15; shader:msdf"></a-entity>
+
+  <!-- ═══ IN-VR CALIBRATION PANEL ═══
+       Floats at head height to the left. Only visible when calOpen=true.
+       Each row: label + value display + two pairs of +/- buttons.
+  ═══ -->
+  <a-entity id="vr-cal-panel" visible="false" position="-1.8 1.5 -1.5" rotation="0 30 0">
+
+    <!-- Backing board -->
+    <a-plane width="1.4" height="1.5"
+      material="color:#0a0a00; opacity:0.95; transparent:true; shader:flat">
+    </a-plane>
+    <a-plane width="1.42" height="1.52" position="0 0 -0.001"
+      material="color:#facc15; opacity:1; shader:flat">
+    </a-plane>
+
+    <!-- Title -->
+    <a-entity position="0 0.62 0.01"
+      text="value:CALIBRATION; align:center; width:3; color:#facc15; shader:msdf">
+    </a-entity>
+
+    <!-- ── ROW: X (Left/Right) ── -->
+    <a-entity position="0 0.44 0.01"
+      text="value:X  LEFT / RIGHT; align:center; width:2.5; color:#888; shader:msdf">
+    </a-entity>
+    <a-entity id="vr-cv-x" position="0 0.30 0.01"
+      text="value:0.00; align:center; width:3; color:#facc15; shader:msdf">
+    </a-entity>
+    <a-box class="clickable" id="vr-x-mm" position="-0.52 0.30 0.02" width="0.22" height="0.12" depth="0.04" color="#333"></a-box>
+    <a-entity position="-0.52 0.315 0.055" text="value:<<; align:center; width:1.2; color:#fff; shader:msdf"></a-entity>
+    <a-box class="clickable" id="vr-x-m"  position="-0.27 0.30 0.02" width="0.22" height="0.12" depth="0.04" color="#555"></a-box>
+    <a-entity position="-0.27 0.315 0.055" text="value:<;  align:center; width:1.2; color:#fff; shader:msdf"></a-entity>
+    <a-box class="clickable" id="vr-x-p"  position=" 0.27 0.30 0.02" width="0.22" height="0.12" depth="0.04" color="#555"></a-box>
+    <a-entity position=" 0.27 0.315 0.055" text="value:>;  align:center; width:1.2; color:#fff; shader:msdf"></a-entity>
+    <a-box class="clickable" id="vr-x-pp" position=" 0.52 0.30 0.02" width="0.22" height="0.12" depth="0.04" color="#333"></a-box>
+    <a-entity position=" 0.52 0.315 0.055" text="value:>>; align:center; width:1.2; color:#fff; shader:msdf"></a-entity>
+
+    <!-- ── ROW: Y (Up/Down) ── -->
+    <a-entity position="0 0.14 0.01"
+      text="value:Y  UP / DOWN; align:center; width:2.5; color:#888; shader:msdf">
+    </a-entity>
+    <a-entity id="vr-cv-y" position="0 0.00 0.01"
+      text="value:0.00; align:center; width:3; color:#facc15; shader:msdf">
+    </a-entity>
+    <a-box class="clickable" id="vr-y-mm" position="-0.52 0.00 0.02" width="0.22" height="0.12" depth="0.04" color="#333"></a-box>
+    <a-entity position="-0.52 0.015 0.055" text="value:<<; align:center; width:1.2; color:#fff; shader:msdf"></a-entity>
+    <a-box class="clickable" id="vr-y-m"  position="-0.27 0.00 0.02" width="0.22" height="0.12" depth="0.04" color="#555"></a-box>
+    <a-entity position="-0.27 0.015 0.055" text="value:<;  align:center; width:1.2; color:#fff; shader:msdf"></a-entity>
+    <a-box class="clickable" id="vr-y-p"  position=" 0.27 0.00 0.02" width="0.22" height="0.12" depth="0.04" color="#555"></a-box>
+    <a-entity position=" 0.27 0.015 0.055" text="value:>;  align:center; width:1.2; color:#fff; shader:msdf"></a-entity>
+    <a-box class="clickable" id="vr-y-pp" position=" 0.52 0.00 0.02" width="0.22" height="0.12" depth="0.04" color="#333"></a-box>
+    <a-entity position=" 0.52 0.015 0.055" text="value:>>; align:center; width:1.2; color:#fff; shader:msdf"></a-entity>
+
+    <!-- ── ROW: Z (Near/Far) ── -->
+    <a-entity position="0 -0.16 0.01"
+      text="value:Z  NEAR / FAR; align:center; width:2.5; color:#888; shader:msdf">
+    </a-entity>
+    <a-entity id="vr-cv-z" position="0 -0.30 0.01"
+      text="value:0.00; align:center; width:3; color:#facc15; shader:msdf">
+    </a-entity>
+    <a-box class="clickable" id="vr-z-mm" position="-0.52 -0.30 0.02" width="0.22" height="0.12" depth="0.04" color="#333"></a-box>
+    <a-entity position="-0.52 -0.285 0.055" text="value:<<; align:center; width:1.2; color:#fff; shader:msdf"></a-entity>
+    <a-box class="clickable" id="vr-z-m"  position="-0.27 -0.30 0.02" width="0.22" height="0.12" depth="0.04" color="#555"></a-box>
+    <a-entity position="-0.27 -0.285 0.055" text="value:<;  align:center; width:1.2; color:#fff; shader:msdf"></a-entity>
+    <a-box class="clickable" id="vr-z-p"  position=" 0.27 -0.30 0.02" width="0.22" height="0.12" depth="0.04" color="#555"></a-box>
+    <a-entity position=" 0.27 -0.285 0.055" text="value:>;  align:center; width:1.2; color:#fff; shader:msdf"></a-entity>
+    <a-box class="clickable" id="vr-z-pp" position=" 0.52 -0.30 0.02" width="0.22" height="0.12" depth="0.04" color="#333"></a-box>
+    <a-entity position=" 0.52 -0.285 0.055" text="value:>>; align:center; width:1.2; color:#fff; shader:msdf"></a-entity>
+
+    <!-- ── ROW: Scale ── -->
+    <a-entity position="0 -0.46 0.01"
+      text="value:SCALE  ZOOM; align:center; width:2.5; color:#888; shader:msdf">
+    </a-entity>
+    <a-entity id="vr-cv-s" position="0 -0.60 0.01"
+      text="value:1.00; align:center; width:3; color:#facc15; shader:msdf">
+    </a-entity>
+    <a-box class="clickable" id="vr-s-mm" position="-0.52 -0.60 0.02" width="0.22" height="0.12" depth="0.04" color="#333"></a-box>
+    <a-entity position="-0.52 -0.585 0.055" text="value:--; align:center; width:1.2; color:#fff; shader:msdf"></a-entity>
+    <a-box class="clickable" id="vr-s-m"  position="-0.27 -0.60 0.02" width="0.22" height="0.12" depth="0.04" color="#555"></a-box>
+    <a-entity position="-0.27 -0.585 0.055" text="value:- ; align:center; width:1.2; color:#fff; shader:msdf"></a-entity>
+    <a-box class="clickable" id="vr-s-p"  position=" 0.27 -0.60 0.02" width="0.22" height="0.12" depth="0.04" color="#555"></a-box>
+    <a-entity position=" 0.27 -0.585 0.055" text="value:+ ; align:center; width:1.2; color:#fff; shader:msdf"></a-entity>
+    <a-box class="clickable" id="vr-s-pp" position=" 0.52 -0.60 0.02" width="0.22" height="0.12" depth="0.04" color="#333"></a-box>
+    <a-entity position=" 0.52 -0.585 0.055" text="value:++; align:center; width:1.2; color:#fff; shader:msdf"></a-entity>
+
+    <!-- SAVE button -->
+    <a-box class="clickable" id="vr-save" position="0 -0.78 0.02"
+      width="0.7" height="0.14" depth="0.04" color="#5a4a00"></a-box>
+    <a-entity position="0 -0.765 0.055"
+      text="value:SAVE; align:center; width:2; color:#facc15; shader:msdf">
+    </a-entity>
+
+  </a-entity>
 
 </a-scene>
 
@@ -401,13 +496,23 @@ function applyC() {
     x: C.x, y: 0.02, z: -3 + C.z
   });
 
-  // Update panel displays
+  // Update 2D panel displays
   document.getElementById('cv-x').textContent  = C.x.toFixed(2)  + ' m';
   document.getElementById('cv-y').textContent  = C.y.toFixed(2)  + ' m';
   document.getElementById('cv-z').textContent  = C.z.toFixed(2)  + ' m';
   document.getElementById('cv-s').textContent  = C.s.toFixed(2);
   document.getElementById('cv-ry').textContent = C.ry.toFixed(0) + '\u00b0';
   document.getElementById('cv-rx').textContent = C.rx.toFixed(0) + '\u00b0';
+
+  // Update 3D VR panel displays
+  const vrX = document.getElementById('vr-cv-x');
+  const vrY = document.getElementById('vr-cv-y');
+  const vrZ = document.getElementById('vr-cv-z');
+  const vrS = document.getElementById('vr-cv-s');
+  if (vrX) vrX.setAttribute('text', 'value', C.x.toFixed(2) + 'm');
+  if (vrY) vrY.setAttribute('text', 'value', C.y.toFixed(2) + 'm');
+  if (vrZ) vrZ.setAttribute('text', 'value', C.z.toFixed(2) + 'm');
+  if (vrS) vrS.setAttribute('text', 'value', C.s.toFixed(2));
 }
 
 function adj(axis, delta) {
@@ -434,9 +539,12 @@ function calReset() {
 
 function toggleCal() {
   calOpen = !calOpen;
+  // 2D desktop panel
   document.getElementById('cal-panel').classList.toggle('open', calOpen);
   document.getElementById('cal-toggle').classList.toggle('active', calOpen);
-  // Show ghost wireframe only while panel is open
+  // 3D VR panel
+  document.getElementById('vr-cal-panel').setAttribute('visible', calOpen ? 'true' : 'false');
+  // Ghost wireframe
   ghost.setAttribute('visible', calOpen ? 'true' : 'false');
 }
 
@@ -467,6 +575,30 @@ applyC();
 
 // VR calibration button
 document.querySelector('#btnCal').addEventListener('click', toggleCal);
+
+// ── VR in-scene calibration button handlers ─────────────
+// X axis
+document.getElementById('vr-x-mm').addEventListener('click', () => adj('x', -0.05));
+document.getElementById('vr-x-m' ).addEventListener('click', () => adj('x', -0.01));
+document.getElementById('vr-x-p' ).addEventListener('click', () => adj('x',  0.01));
+document.getElementById('vr-x-pp').addEventListener('click', () => adj('x',  0.05));
+// Y axis
+document.getElementById('vr-y-mm').addEventListener('click', () => adj('y', -0.05));
+document.getElementById('vr-y-m' ).addEventListener('click', () => adj('y', -0.01));
+document.getElementById('vr-y-p' ).addEventListener('click', () => adj('y',  0.01));
+document.getElementById('vr-y-pp').addEventListener('click', () => adj('y',  0.05));
+// Z axis
+document.getElementById('vr-z-mm').addEventListener('click', () => adj('z', -0.05));
+document.getElementById('vr-z-m' ).addEventListener('click', () => adj('z', -0.01));
+document.getElementById('vr-z-p' ).addEventListener('click', () => adj('z',  0.01));
+document.getElementById('vr-z-pp').addEventListener('click', () => adj('z',  0.05));
+// Scale
+document.getElementById('vr-s-mm').addEventListener('click', () => adj('s', -0.05));
+document.getElementById('vr-s-m' ).addEventListener('click', () => adj('s', -0.01));
+document.getElementById('vr-s-p' ).addEventListener('click', () => adj('s',  0.01));
+document.getElementById('vr-s-pp').addEventListener('click', () => adj('s',  0.05));
+// Save
+document.getElementById('vr-save').addEventListener('click', calSave);
 
 // ═══════════════════════════════════════════════════
 // MIDI SETUP  (from reference — unchanged)
