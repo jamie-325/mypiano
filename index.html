@@ -4,10 +4,208 @@
 <meta charset="utf-8">
 <title>VR Synthesia Piano</title>
 <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
+
+<style>
+  /* ── Calibration panel ─────────────────────────────── */
+  #cal-panel {
+    display: none;
+    position: fixed;
+    bottom: 0; left: 50%;
+    transform: translateX(-50%);
+    z-index: 9999;
+    background: rgba(0,0,0,0.93);
+    border: 1px solid #facc15;
+    border-bottom: none;
+    border-radius: 10px 10px 0 0;
+    padding: 16px 28px 14px;
+    font-family: 'Courier New', monospace;
+    color: #facc15;
+    min-width: 560px;
+    user-select: none;
+  }
+  #cal-panel.open { display: block; }
+
+  #cal-panel h3 {
+    text-align: center;
+    font-size: 0.78rem;
+    letter-spacing: 0.18em;
+    color: #fef08a;
+    margin-bottom: 14px;
+  }
+
+  .cal-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+    margin-bottom: 12px;
+  }
+
+  .cal-row {
+    display: flex; flex-direction: column;
+    align-items: center; gap: 5px;
+  }
+  .cal-row label {
+    font-size: 0.6rem; color: #666;
+    letter-spacing: 0.1em; text-transform: uppercase;
+  }
+  .cal-row .val {
+    font-size: 0.95rem; font-weight: bold;
+    color: #facc15; min-width: 54px; text-align: center;
+  }
+  .cal-row .btns { display: flex; gap: 4px; }
+
+  .cb {
+    padding: 3px 9px;
+    font: 700 0.72rem 'Courier New', monospace;
+    background: #111; color: #ccc;
+    border: 1px solid #444; border-radius: 3px;
+    cursor: pointer; transition: all 0.08s;
+  }
+  .cb:hover { background: #facc15; color: #000; border-color: #facc15; }
+
+  .cal-hint {
+    text-align: center; font-size: 0.63rem;
+    color: #444; margin-bottom: 10px;
+    letter-spacing: 0.04em;
+  }
+
+  .cal-footer { display: flex; justify-content: center; gap: 10px; }
+
+  #cal-save {
+    padding: 7px 28px;
+    background: #facc15; color: #000;
+    border: none; border-radius: 4px;
+    font: 700 0.8rem 'Courier New', monospace;
+    letter-spacing: 0.1em; cursor: pointer;
+  }
+  #cal-save:hover { background: #fef08a; }
+
+  #cal-reset {
+    padding: 7px 18px;
+    background: #111; color: #555;
+    border: 1px solid #333; border-radius: 4px;
+    font: 0.78rem 'Courier New', monospace;
+    cursor: pointer;
+  }
+  #cal-reset:hover { background: #333; color: #aaa; }
+
+  /* ── HUD button ────────────────────────────────────── */
+  #cal-toggle {
+    position: fixed;
+    top: 12px; right: 14px;
+    z-index: 9999;
+    padding: 7px 18px;
+    background: rgba(0,0,0,0.8);
+    color: #facc15;
+    border: 1px solid #facc15;
+    border-radius: 5px;
+    font: 700 0.78rem 'Courier New', monospace;
+    letter-spacing: 0.1em;
+    cursor: pointer;
+    transition: all 0.1s;
+  }
+  #cal-toggle:hover,
+  #cal-toggle.active { background: #facc15; color: #000; }
+</style>
 </head>
 
 <body>
-<a-scene background="color:#111" xr-mode-ui="enabled:true">
+
+<!-- Calibration toggle button (always visible) -->
+<button id="cal-toggle" onclick="toggleCal()">&#10022; CALIBRATE</button>
+
+<!-- Calibration panel (slides up from bottom) -->
+<div id="cal-panel">
+  <h3>&#10022; KEYBOARD CALIBRATION &mdash; align virtual keys to your real piano</h3>
+
+  <div class="cal-grid">
+
+    <div class="cal-row">
+      <label>X &mdash; Left / Right</label>
+      <div class="val" id="cv-x">0.00 m</div>
+      <div class="btns">
+        <button class="cb" onclick="adj('x',-0.05)">&#9668;&#9668;</button>
+        <button class="cb" onclick="adj('x',-0.01)">&#9668;</button>
+        <button class="cb" onclick="adj('x', 0.01)">&#9658;</button>
+        <button class="cb" onclick="adj('x', 0.05)">&#9658;&#9658;</button>
+      </div>
+    </div>
+
+    <div class="cal-row">
+      <label>Y &mdash; Up / Down</label>
+      <div class="val" id="cv-y">0.00 m</div>
+      <div class="btns">
+        <button class="cb" onclick="adj('y', 0.05)">&#9650;&#9650;</button>
+        <button class="cb" onclick="adj('y', 0.01)">&#9650;</button>
+        <button class="cb" onclick="adj('y',-0.01)">&#9660;</button>
+        <button class="cb" onclick="adj('y',-0.05)">&#9660;&#9660;</button>
+      </div>
+    </div>
+
+    <div class="cal-row">
+      <label>Z &mdash; Near / Far</label>
+      <div class="val" id="cv-z">0.00 m</div>
+      <div class="btns">
+        <button class="cb" onclick="adj('z',-0.05)">&#9668;&#9668;</button>
+        <button class="cb" onclick="adj('z',-0.01)">&#9668;</button>
+        <button class="cb" onclick="adj('z', 0.01)">&#9658;</button>
+        <button class="cb" onclick="adj('z', 0.05)">&#9658;&#9658;</button>
+      </div>
+    </div>
+
+    <div class="cal-row">
+      <label>Scale &mdash; Zoom</label>
+      <div class="val" id="cv-s">1.00</div>
+      <div class="btns">
+        <button class="cb" onclick="adj('s',-0.05)">--</button>
+        <button class="cb" onclick="adj('s',-0.01)">-</button>
+        <button class="cb" onclick="adj('s', 0.01)">+</button>
+        <button class="cb" onclick="adj('s', 0.05)">++</button>
+      </div>
+    </div>
+
+    <div class="cal-row">
+      <label>Rotate Y &mdash; Spin</label>
+      <div class="val" id="cv-ry">0&deg;</div>
+      <div class="btns">
+        <button class="cb" onclick="adj('ry',-5)">&#9668;&#9668;</button>
+        <button class="cb" onclick="adj('ry',-1)">&#9668;</button>
+        <button class="cb" onclick="adj('ry', 1)">&#9658;</button>
+        <button class="cb" onclick="adj('ry', 5)">&#9658;&#9658;</button>
+      </div>
+    </div>
+
+    <div class="cal-row">
+      <label>Rotate X &mdash; Tilt</label>
+      <div class="val" id="cv-rx">0&deg;</div>
+      <div class="btns">
+        <button class="cb" onclick="adj('rx',-5)">&#9668;&#9668;</button>
+        <button class="cb" onclick="adj('rx',-1)">&#9668;</button>
+        <button class="cb" onclick="adj('rx', 1)">&#9658;</button>
+        <button class="cb" onclick="adj('rx', 5)">&#9658;&#9658;</button>
+      </div>
+    </div>
+
+  </div>
+
+  <p class="cal-hint">
+    Keyboard shortcuts (when panel open):
+    Arrows = X/Z &nbsp;|&nbsp; W/S = Y &nbsp;|&nbsp;
+    Q/E = Rotate Y &nbsp;|&nbsp; R/F = Rotate X &nbsp;|&nbsp;
+    +/- = Scale &nbsp;|&nbsp; P = Save
+  </p>
+
+  <div class="cal-footer">
+    <button id="cal-save"  onclick="calSave()">SAVE</button>
+    <button id="cal-reset" onclick="calReset()">RESET</button>
+  </div>
+</div>
+
+
+<!-- ════════════════════════════════════
+     A-FRAME SCENE  (reference code, untouched)
+════════════════════════════════════ -->
+<a-scene background="color:#111" xr-mode-ui="enabled: true">
 
   <!-- Camera -->
   <a-camera position="0 1.6 2">
@@ -15,275 +213,400 @@
   </a-camera>
 
   <!-- Hit Line -->
-  <a-plane position="0 0.02 -3"
-           width="20"
-           height="0.01"
-           color="#ffffff"
-           opacity="0.7">
+  <a-plane id="hitline"
+    position="0 0.02 -3"
+    width="20" height="0.01"
+    color="#ffffff" opacity="0.7">
   </a-plane>
 
-  <!-- Piano Container -->
-  <a-entity id="piano" position="0 0 -3"></a-entity>
+  <!--
+    CAL-ROOT wraps both piano + roll.
+    Moving cal-root moves everything together,
+    so falling notes always align with the keys.
+  -->
+  <a-entity id="cal-root" position="0 0 0">
 
-  <!-- Roll Container -->
-  <a-entity id="roll" position="0 0 -3"></a-entity>
+    <!-- Piano Container -->
+    <a-entity id="piano" position="0 0 -3"></a-entity>
 
-  <!-- VR Buttons -->
+    <!-- Roll Container -->
+    <a-entity id="roll"  position="0 0 -3"></a-entity>
+
+    <!-- Ghost overlay (wireframe, shown during calibration) -->
+    <a-entity id="ghost" visible="false" position="0 0 -3"></a-entity>
+
+  </a-entity>
+
+  <!-- VR Buttons (outside cal-root so they don't move) -->
   <a-box id="btnRecord" position="-1.5 1.4 -2"
-         width="0.5" height="0.2" depth="0.1"
-         color="#aa0000"></a-box>
-
-  <a-box id="btnStop" position="-0.8 1.4 -2"
-         width="0.5" height="0.2" depth="0.1"
-         color="#555"></a-box>
-
-  <a-box id="btnPlay" position="-0.1 1.4 -2"
-         width="0.5" height="0.2" depth="0.1"
-         color="#0066aa"></a-box>
+    width="0.5" height="0.2" depth="0.1" color="#aa0000"></a-box>
+  <a-box id="btnStop"   position="-0.8 1.4 -2"
+    width="0.5" height="0.2" depth="0.1" color="#555"></a-box>
+  <a-box id="btnPlay"   position="-0.1 1.4 -2"
+    width="0.5" height="0.2" depth="0.1" color="#0066aa"></a-box>
 
   <a-entity position="-1.5 1.4 -1.9"
-    text="value:REC; align:center; width:2; color:#fff"></a-entity>
-
+    text="value:REC;  align:center; width:2; color:#fff"></a-entity>
   <a-entity position="-0.8 1.4 -1.9"
     text="value:STOP; align:center; width:2; color:#fff"></a-entity>
-
   <a-entity position="-0.1 1.4 -1.9"
     text="value:PLAY; align:center; width:2; color:#fff"></a-entity>
 
+  <!-- VR calibration button -->
+  <a-box id="btnCal" position="0.6 1.4 -2"
+    width="0.5" height="0.2" depth="0.1" color="#5a4a00"></a-box>
+  <a-entity position="0.6 1.4 -1.9"
+    text="value:CAL; align:center; width:2; color:#facc15"></a-entity>
+
 </a-scene>
+
 
 <script>
 
-const START_NOTE = 21;
-const END_NOTE = 108;
+// ═══════════════════════════════════════════════════
+// CONSTANTS  (from reference — unchanged)
+// ═══════════════════════════════════════════════════
+const START_NOTE  = 21;
+const END_NOTE    = 108;
 const WHITE_WIDTH = 0.12;
 const BLACK_WIDTH = 0.07;
 const BLACK_HEIGHT = 0.15;
 const WHITE_HEIGHT = 0.2;
-const FALL_SPEED = 1.5;
-const BPM = 120;
+const FALL_SPEED  = 1.5;
+const BPM         = 120;
 
 const piano = document.querySelector('#piano');
-const roll = document.querySelector('#roll');
+const roll  = document.querySelector('#roll');
+const ghost = document.querySelector('#ghost');
 
 let keyMap = {};
 let keyPos = {};
 let isRecording = false;
-let isPlaying = false;
+let isPlaying   = false;
 let recordStart = 0;
-let playStart = 0;
-let recording = [];
+let playStart   = 0;
+let recording   = [];
 
-const isBlack = n => [1,3,6,8,10].includes(n % 12);
-const isRightHand = n => n >= 60;
+const isBlack      = n => [1,3,6,8,10].includes(n % 12);
+const isRightHand  = n => n >= 60;
 
-// ───────── BUILD 88 KEY PIANO ─────────
-
+// ═══════════════════════════════════════════════════
+// BUILD 88-KEY PIANO  (from reference — unchanged)
+// ═══════════════════════════════════════════════════
 let whiteIndex = 0;
 
-for(let n = START_NOTE; n <= END_NOTE; n++){
+for (let n = START_NOTE; n <= END_NOTE; n++) {
 
   const key = document.createElement('a-box');
   key.dataset.note = n;
 
-  if(!isBlack(n)){
-    key.setAttribute('width', WHITE_WIDTH);
+  if (!isBlack(n)) {
+    key.setAttribute('width',  WHITE_WIDTH);
     key.setAttribute('height', WHITE_HEIGHT);
-    key.setAttribute('depth', 0.8);
-    key.setAttribute('color', '#fff');
-    key.setAttribute('position',{
-      x: whiteIndex * WHITE_WIDTH,
-      y: 0,
-      z: 0
-    });
+    key.setAttribute('depth',  0.8);
+    key.setAttribute('color',  '#fff');
+    key.setAttribute('position', { x: whiteIndex * WHITE_WIDTH, y: 0, z: 0 });
     keyPos[n] = whiteIndex * WHITE_WIDTH;
     whiteIndex++;
   } else {
-    key.setAttribute('width', BLACK_WIDTH);
+    key.setAttribute('width',  BLACK_WIDTH);
     key.setAttribute('height', BLACK_HEIGHT);
-    key.setAttribute('depth', 0.5);
-    key.setAttribute('color', '#000');
-    key.setAttribute('position',{
-      x: (whiteIndex - 1) * WHITE_WIDTH + WHITE_WIDTH/2,
+    key.setAttribute('depth',  0.5);
+    key.setAttribute('color',  '#000');
+    key.setAttribute('position', {
+      x: (whiteIndex - 1) * WHITE_WIDTH + WHITE_WIDTH / 2,
       y: 0.05,
       z: -0.15
     });
-    keyPos[n] = (whiteIndex - 1) * WHITE_WIDTH + WHITE_WIDTH/2;
+    keyPos[n] = (whiteIndex - 1) * WHITE_WIDTH + WHITE_WIDTH / 2;
   }
 
   piano.appendChild(key);
   keyMap[n] = key;
 }
 
-piano.object3D.position.x = -(whiteIndex * WHITE_WIDTH)/2;
+// Centre the keyboard
+piano.object3D.position.x = -(whiteIndex * WHITE_WIDTH) / 2;
+roll.object3D.position.x  = -(whiteIndex * WHITE_WIDTH) / 2;
+ghost.object3D.position.x = -(whiteIndex * WHITE_WIDTH) / 2;
 
-// ───────── MIDI SETUP ─────────
+// ═══════════════════════════════════════════════════
+// GHOST WIREFRAME OVERLAY
+// Semi-transparent wireframe copy of the piano,
+// visible during calibration so you can see where
+// the virtual keys sit relative to your real ones.
+// ═══════════════════════════════════════════════════
+(function buildGhost() {
+  for (let n = START_NOTE; n <= END_NOTE; n++) {
+    const g = document.createElement('a-box');
+    const black = isBlack(n);
 
-navigator.requestMIDIAccess?.().then(access=>{
-  access.inputs.forEach(input=>{
+    g.setAttribute('width',  black ? BLACK_WIDTH  : WHITE_WIDTH);
+    g.setAttribute('height', black ? BLACK_HEIGHT : WHITE_HEIGHT);
+    g.setAttribute('depth',  black ? 0.5 : 0.8);
+
+    const xPos = keyPos[n];
+    g.setAttribute('position', {
+      x: xPos,
+      y: black ? 0.05 : 0,
+      z: black ? -0.15 : 0
+    });
+
+    // Bright yellow wireframe — easy to see against a real piano
+    g.setAttribute('material',
+      'color: #facc15; wireframe: true; opacity: 0.6; transparent: true');
+
+    ghost.appendChild(g);
+  }
+})();
+
+// ═══════════════════════════════════════════════════
+// CALIBRATION
+// Saves 6 values: x, y, z offset + scale + rx, ry
+// All stored in localStorage so they survive a refresh.
+// Applying calibration moves cal-root (which wraps
+// both piano AND roll), so notes always stay aligned.
+// ═══════════════════════════════════════════════════
+const CAL_STORE = 'vr_piano_cal_v1';
+const CAL_DEF   = { x: 0, y: 0, z: 0, s: 1, rx: 0, ry: 0 };
+
+let C = Object.assign({}, CAL_DEF,
+  JSON.parse(localStorage.getItem(CAL_STORE) || 'null') || {});
+
+let calOpen = false;
+
+const calRoot   = document.querySelector('#cal-root');
+const hitlineEl = document.querySelector('#hitline');
+
+function applyC() {
+  // Position — starts at 0,0,0; calibration shifts it
+  calRoot.setAttribute('position', {
+    x: C.x,
+    y: C.y,
+    z: C.z          // z offsets the whole cluster forward/back
+  });
+
+  calRoot.setAttribute('rotation', {
+    x: C.rx,
+    y: C.ry,
+    z: 0
+  });
+
+  calRoot.setAttribute('scale', {
+    x: C.s, y: C.s, z: C.s
+  });
+
+  // Hitline follows X and Z so it stays under the keys
+  hitlineEl.setAttribute('position', {
+    x: C.x, y: 0.02, z: -3 + C.z
+  });
+
+  // Update panel displays
+  document.getElementById('cv-x').textContent  = C.x.toFixed(2)  + ' m';
+  document.getElementById('cv-y').textContent  = C.y.toFixed(2)  + ' m';
+  document.getElementById('cv-z').textContent  = C.z.toFixed(2)  + ' m';
+  document.getElementById('cv-s').textContent  = C.s.toFixed(2);
+  document.getElementById('cv-ry').textContent = C.ry.toFixed(0) + '\u00b0';
+  document.getElementById('cv-rx').textContent = C.rx.toFixed(0) + '\u00b0';
+}
+
+function adj(axis, delta) {
+  C[axis] = parseFloat((C[axis] + delta).toFixed(4));
+  applyC();
+}
+
+function calSave() {
+  localStorage.setItem(CAL_STORE, JSON.stringify(C));
+  const btn = document.getElementById('cal-save');
+  const prev = btn.textContent;
+  btn.textContent = 'SAVED \u2713';
+  btn.style.background = '#22c55e';
+  setTimeout(() => {
+    btn.textContent = prev;
+    btn.style.background = '';
+  }, 1400);
+}
+
+function calReset() {
+  C = Object.assign({}, CAL_DEF);
+  applyC();
+}
+
+function toggleCal() {
+  calOpen = !calOpen;
+  document.getElementById('cal-panel').classList.toggle('open', calOpen);
+  document.getElementById('cal-toggle').classList.toggle('active', calOpen);
+  // Show ghost wireframe only while panel is open
+  ghost.setAttribute('visible', calOpen ? 'true' : 'false');
+}
+
+// Keyboard shortcuts — only active when cal panel is open
+window.addEventListener('keydown', e => {
+  if (!calOpen) return;
+  const step = 0.01, rs = 1;
+  const map = {
+    'ArrowLeft':  () => adj('x', -step),
+    'ArrowRight': () => adj('x',  step),
+    'ArrowUp':    () => adj('z', -step),
+    'ArrowDown':  () => adj('z',  step),
+    'w': () => adj('y',  step), 'W': () => adj('y',  step),
+    's': () => adj('y', -step), 'S': () => adj('y', -step),
+    'q': () => adj('ry', -rs),  'Q': () => adj('ry', -rs),
+    'e': () => adj('ry',  rs),  'E': () => adj('ry',  rs),
+    'r': () => adj('rx', -rs),  'R': () => adj('rx', -rs),
+    'f': () => adj('rx',  rs),  'F': () => adj('rx',  rs),
+    '+': () => adj('s',  0.01), '=': () => adj('s',  0.01),
+    '-': () => adj('s', -0.01), '_': () => adj('s', -0.01),
+    'p': calSave, 'P': calSave,
+  };
+  if (map[e.key]) { e.preventDefault(); map[e.key](); }
+});
+
+// Apply saved calibration immediately on load
+applyC();
+
+// VR calibration button
+document.querySelector('#btnCal').addEventListener('click', toggleCal);
+
+// ═══════════════════════════════════════════════════
+// MIDI SETUP  (from reference — unchanged)
+// ═══════════════════════════════════════════════════
+navigator.requestMIDIAccess?.().then(access => {
+  access.inputs.forEach(input => {
     input.onmidimessage = handleMIDI;
   });
 });
 
-function handleMIDI(event){
-  const [status,note,velocity] = event.data;
+function handleMIDI(event) {
+  const [status, note, velocity] = event.data;
   const type = status & 0xf0;
-
-  if(type===0x90 && velocity>0) noteOn(note,velocity);
-  if(type===0x80 || (type===0x90 && velocity===0)) noteOff(note);
+  if (type === 0x90 && velocity > 0) noteOn(note, velocity);
+  if (type === 0x80 || (type === 0x90 && velocity === 0)) noteOff(note);
 }
 
 let activeNotes = {};
 
-function noteOn(note,velocity){
-  keyMap[note]?.setAttribute('color','#22c55e');
-
-  activeNotes[note] = {
-    time: performance.now()
-  };
-
-  if(isRecording){
+function noteOn(note, velocity) {
+  keyMap[note]?.setAttribute('color', '#22c55e');
+  activeNotes[note] = { time: performance.now() };
+  if (isRecording) {
     recording.push({
-      type:'on',
-      midi:note,
-      velocity,
-      time:(performance.now()-recordStart)/1000
+      type: 'on', midi: note, velocity,
+      time: (performance.now() - recordStart) / 1000
     });
   }
 }
 
-function noteOff(note){
-  keyMap[note]?.setAttribute('color', isBlack(note)?'#000':'#fff');
-
-  if(isRecording){
+function noteOff(note) {
+  keyMap[note]?.setAttribute('color', isBlack(note) ? '#000' : '#fff');
+  if (isRecording) {
     recording.push({
-      type:'off',
-      midi:note,
-      time:(performance.now()-recordStart)/1000
+      type: 'off', midi: note,
+      time: (performance.now() - recordStart) / 1000
     });
   }
 }
 
-// ───────── RECORD / PLAY / STOP ─────────
-
-document.querySelector('#btnRecord').onclick = ()=>{
+// ═══════════════════════════════════════════════════
+// RECORD / PLAY / STOP  (from reference — unchanged)
+// ═══════════════════════════════════════════════════
+document.querySelector('#btnRecord').onclick = () => {
   recording = [];
   isRecording = true;
   isPlaying = false;
   recordStart = performance.now();
 };
 
-document.querySelector('#btnStop').onclick = ()=>{
+document.querySelector('#btnStop').onclick = () => {
   isRecording = false;
   isPlaying = false;
 };
 
-document.querySelector('#btnPlay').onclick = ()=>{
-  if(!recording.length) return;
+document.querySelector('#btnPlay').onclick = () => {
+  if (!recording.length) return;
   isPlaying = true;
   isRecording = false;
   playStart = performance.now();
   buildRoll();
 };
 
-// ───────── BUILD SYNTHESIA ROLL ─────────
-
-function buildRoll(){
-
-  roll.innerHTML = "";
+// ═══════════════════════════════════════════════════
+// SYNTHESIA ROLL  (from reference — unchanged)
+// ═══════════════════════════════════════════════════
+function buildRoll() {
+  roll.innerHTML = '';
   const active = {};
-
-  recording.forEach(ev=>{
-    if(ev.type==='on') active[ev.midi]=ev;
-    if(ev.type==='off' && active[ev.midi]){
+  recording.forEach(ev => {
+    if (ev.type === 'on') active[ev.midi] = ev;
+    if (ev.type === 'off' && active[ev.midi]) {
       const onEv = active[ev.midi];
-      createNote(ev.midi,onEv.time,ev.time-onEv.time);
+      createNote(ev.midi, onEv.time, ev.time - onEv.time);
       delete active[ev.midi];
     }
   });
-
   createBeatGrid();
 }
 
-function createNote(midi,start,duration){
-
+function createNote(midi, start, duration) {
   const note = document.createElement('a-box');
-
-  note.setAttribute('width', isBlack(midi)?BLACK_WIDTH:WHITE_WIDTH);
-  note.setAttribute('depth',0.15);
-  note.setAttribute('height', duration*FALL_SPEED);
-  note.setAttribute('color',
-    isRightHand(midi)?'#38bdf8':'#a78bfa');
-
-  note.dataset.start = start;
+  note.setAttribute('width',  isBlack(midi) ? BLACK_WIDTH : WHITE_WIDTH);
+  note.setAttribute('depth',  0.15);
+  note.setAttribute('height', duration * FALL_SPEED);
+  note.setAttribute('color',  isRightHand(midi) ? '#38bdf8' : '#a78bfa');
+  note.dataset.start    = start;
   note.dataset.duration = duration;
-  note.dataset.midi = midi;
-
+  note.dataset.midi     = midi;
   roll.appendChild(note);
 }
 
-function createBeatGrid(){
-  const secondsPerBeat = 60/BPM;
-  const totalTime = Math.max(...recording.map(e=>e.time));
-
-  for(let t=0;t<totalTime;t+=secondsPerBeat){
-    const line=document.createElement('a-plane');
-    line.setAttribute('width',20);
-    line.setAttribute('height',0.005);
-    line.setAttribute('color','#444');
-    line.dataset.time=t;
+function createBeatGrid() {
+  const secondsPerBeat = 60 / BPM;
+  const totalTime = Math.max(...recording.map(e => e.time));
+  for (let t = 0; t < totalTime; t += secondsPerBeat) {
+    const line = document.createElement('a-plane');
+    line.setAttribute('width',  20);
+    line.setAttribute('height', 0.005);
+    line.setAttribute('color',  '#444');
+    line.dataset.time = t;
     roll.appendChild(line);
   }
 }
 
-// ───────── FALLING ENGINE ─────────
+// ═══════════════════════════════════════════════════
+// FALLING ENGINE  (from reference — unchanged)
+// ═══════════════════════════════════════════════════
+document.querySelector('a-scene').addEventListener('tick', () => {
+  if (!isPlaying) return;
 
-document.querySelector('a-scene')
-.addEventListener('tick',()=>{
+  const currentTime = (performance.now() - playStart) / 1000;
 
-  if(!isPlaying) return;
+  roll.childNodes.forEach(obj => {
+    if (obj.tagName === 'A-BOX') {
+      const start    = parseFloat(obj.dataset.start);
+      const duration = parseFloat(obj.dataset.duration);
+      const midi     = obj.dataset.midi;
+      const y = (start - currentTime) * FALL_SPEED;
 
-  const currentTime =
-    (performance.now()-playStart)/1000;
-
-  roll.childNodes.forEach(obj=>{
-
-    if(obj.tagName==='A-BOX'){
-
-      const start=parseFloat(obj.dataset.start);
-      const duration=parseFloat(obj.dataset.duration);
-      const midi=obj.dataset.midi;
-
-      const y=(start-currentTime)*FALL_SPEED;
-
-      obj.setAttribute('position',{
-        x:keyPos[midi]-(whiteIndex*WHITE_WIDTH)/2,
-        y:y+(duration*FALL_SPEED)/2,
-        z:0
+      obj.setAttribute('position', {
+        x: keyPos[midi] - (whiteIndex * WHITE_WIDTH) / 2,
+        y: y + (duration * FALL_SPEED) / 2,
+        z: 0
       });
 
-      if(Math.abs(y)<0.02){
-        keyMap[midi]
-          ?.setAttribute('color','#facc15');
+      if (Math.abs(y) < 0.02) {
+        keyMap[midi]?.setAttribute('color', '#facc15');
       }
 
-      if(y+duration*FALL_SPEED<-1){
+      if (y + duration * FALL_SPEED < -1) {
         obj.remove();
       }
     }
 
-    if(obj.tagName==='A-PLANE'){
-      const y=(obj.dataset.time-currentTime)
-              *FALL_SPEED;
-      obj.setAttribute('position',{
-        x:0,
-        y:y,
-        z:-0.05
-      });
+    if (obj.tagName === 'A-PLANE') {
+      const y = (obj.dataset.time - currentTime) * FALL_SPEED;
+      obj.setAttribute('position', { x: 0, y: y, z: -0.05 });
     }
-
   });
-
 });
 
 </script>
