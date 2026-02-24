@@ -1,121 +1,114 @@
 <!DOCTYPE html>
 <html>
 <head>
-<meta charset="utf-8" />
-<title>VR MIDI Recorder</title>
+<meta charset="utf-8">
+<title>VR Synthesia Piano</title>
 <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
 </head>
 
 <body>
+<a-scene background="color:#111" xr-mode-ui="enabled:true">
 
-<a-scene id="scene" xr-mode-ui="enabled:true" background="color:#111">
-
-  <!-- Treble Staff -->
-  <a-entity id="trebleLane" position="0 2.4 -3"></a-entity>
-
-  <!-- Bass Staff -->
-  <a-entity id="bassLane" position="0 1.2 -3"></a-entity>
-
-  <!-- Staff Labels -->
-  <a-entity position="-2 2.6 -3"
-            text="value:𝄞 Treble; width:4; color:#fff">
-  </a-entity>
-
-  <a-entity position="-2 1.4 -3"
-            text="value:𝄢 Bass; width:4; color:#fff">
-  </a-entity>
-
-  <!-- Record Button -->
-  <a-box id="recordBtn"
-         position="-1 3 -3"
-         depth="0.2" height="0.4" width="1"
-         color="#880000">
-  </a-box>
-
-  <a-entity position="-1 3 -2.8"
-            text="value:RECORD; align:center; width:4; color:#fff">
-  </a-entity>
-
-  <!-- Play Button -->
-  <a-box id="playBtn"
-         position="1 3 -3"
-         depth="0.2" height="0.4" width="1"
-         color="#006600">
-  </a-box>
-
-  <a-entity position="1 3 -2.8"
-            text="value:PLAY; align:center; width:4; color:#fff">
-  </a-entity>
-
-  <!-- Piano -->
-  <a-entity id="piano" position="0 0.6 -3"></a-entity>
-
-  <a-camera position="0 1.6 0">
-    <a-cursor fuse="true" fuse-timeout="700"></a-cursor>
+  <!-- Camera -->
+  <a-camera position="0 1.6 2">
+    <a-cursor fuse="true" fuse-timeout="600"></a-cursor>
   </a-camera>
+
+  <!-- Hit Line -->
+  <a-plane position="0 0.02 -3"
+           width="20"
+           height="0.01"
+           color="#ffffff"
+           opacity="0.7">
+  </a-plane>
+
+  <!-- Piano Container -->
+  <a-entity id="piano" position="0 0 -3"></a-entity>
+
+  <!-- Roll Container -->
+  <a-entity id="roll" position="0 0 -3"></a-entity>
+
+  <!-- VR Buttons -->
+  <a-box id="btnRecord" position="-1.5 1.4 -2"
+         width="0.5" height="0.2" depth="0.1"
+         color="#aa0000"></a-box>
+
+  <a-box id="btnStop" position="-0.8 1.4 -2"
+         width="0.5" height="0.2" depth="0.1"
+         color="#555"></a-box>
+
+  <a-box id="btnPlay" position="-0.1 1.4 -2"
+         width="0.5" height="0.2" depth="0.1"
+         color="#0066aa"></a-box>
+
+  <a-entity position="-1.5 1.4 -1.9"
+    text="value:REC; align:center; width:2; color:#fff"></a-entity>
+
+  <a-entity position="-0.8 1.4 -1.9"
+    text="value:STOP; align:center; width:2; color:#fff"></a-entity>
+
+  <a-entity position="-0.1 1.4 -1.9"
+    text="value:PLAY; align:center; width:2; color:#fff"></a-entity>
 
 </a-scene>
 
 <script>
-window.addEventListener("load", () => {
-
-const scene = document.querySelector("#scene");
-const piano = document.querySelector("#piano");
-const trebleLane = document.querySelector("#trebleLane");
-const bassLane = document.querySelector("#bassLane");
-const recordBtn = document.querySelector("#recordBtn");
-const playBtn = document.querySelector("#playBtn");
 
 const START_NOTE = 21;
 const END_NOTE = 108;
 const WHITE_WIDTH = 0.12;
-const MIDDLE_C = 60;
-const SCROLL_SPEED = 0.01;
+const BLACK_WIDTH = 0.07;
+const BLACK_HEIGHT = 0.15;
+const WHITE_HEIGHT = 0.2;
+const FALL_SPEED = 1.5;
+const BPM = 120;
 
-window.midiState = {
-  activeNotes: {},
-  recorded: [],
-  recording: false,
-  playing: false
-};
+const piano = document.querySelector('#piano');
+const roll = document.querySelector('#roll');
 
+let keyMap = {};
+let keyPos = {};
+let isRecording = false;
+let isPlaying = false;
 let recordStart = 0;
-let playbackStart = 0;
+let playStart = 0;
+let recording = [];
 
-// ---------- BUILD PIANO ----------
+const isBlack = n => [1,3,6,8,10].includes(n % 12);
+const isRightHand = n => n >= 60;
+
+// ───────── BUILD 88 KEY PIANO ─────────
+
 let whiteIndex = 0;
-const keyMap = {};
 
-for (let n = START_NOTE; n <= END_NOTE; n++) {
+for(let n = START_NOTE; n <= END_NOTE; n++){
 
-  const isBlack = [1,3,6,8,10].includes(n % 12);
-  const key = document.createElement("a-box");
+  const key = document.createElement('a-box');
   key.dataset.note = n;
 
-  if (!isBlack) {
-    key.setAttribute("width", WHITE_WIDTH);
-    key.setAttribute("height", 0.2);
-    key.setAttribute("depth", 1);
-    key.setAttribute("color", "#fff");
-
-    key.setAttribute("position", {
+  if(!isBlack(n)){
+    key.setAttribute('width', WHITE_WIDTH);
+    key.setAttribute('height', WHITE_HEIGHT);
+    key.setAttribute('depth', 0.8);
+    key.setAttribute('color', '#fff');
+    key.setAttribute('position',{
       x: whiteIndex * WHITE_WIDTH,
       y: 0,
       z: 0
     });
-
+    keyPos[n] = whiteIndex * WHITE_WIDTH;
     whiteIndex++;
   } else {
-    key.setAttribute("width", 0.07);
-    key.setAttribute("height", 0.15);
-    key.setAttribute("depth", 0.6);
-    key.setAttribute("color", "#000");
-
-    key.setAttribute("position", {
+    key.setAttribute('width', BLACK_WIDTH);
+    key.setAttribute('height', BLACK_HEIGHT);
+    key.setAttribute('depth', 0.5);
+    key.setAttribute('color', '#000');
+    key.setAttribute('position',{
       x: (whiteIndex - 1) * WHITE_WIDTH + WHITE_WIDTH/2,
       y: 0.05,
-      z: -0.2
+      z: -0.15
     });
+    keyPos[n] = (whiteIndex - 1) * WHITE_WIDTH + WHITE_WIDTH/2;
   }
 
   piano.appendChild(key);
@@ -124,129 +117,175 @@ for (let n = START_NOTE; n <= END_NOTE; n++) {
 
 piano.object3D.position.x = -(whiteIndex * WHITE_WIDTH)/2;
 
-// ---------- RECORD BUTTON ----------
-recordBtn.addEventListener("click", () => {
-  window.midiState.recording = !window.midiState.recording;
-  recordBtn.setAttribute("color",
-    window.midiState.recording ? "#ff0000" : "#880000"
-  );
+// ───────── MIDI SETUP ─────────
 
-  if (window.midiState.recording) {
-    window.midiState.recorded = [];
-    recordStart = performance.now();
-  }
-});
-
-// ---------- PLAY BUTTON ----------
-playBtn.addEventListener("click", () => {
-  if (!window.midiState.recorded.length) return;
-
-  window.midiState.playing = true;
-  playbackStart = performance.now();
-
-  trebleLane.innerHTML = "";
-  bassLane.innerHTML = "";
-});
-
-// ---------- MIDI ----------
-navigator.requestMIDIAccess?.().then(access => {
-  access.inputs.forEach(input => {
+navigator.requestMIDIAccess?.().then(access=>{
+  access.inputs.forEach(input=>{
     input.onmidimessage = handleMIDI;
   });
 });
 
-function handleMIDI(event) {
-  const [status, note, velocity] = event.data;
+function handleMIDI(event){
+  const [status,note,velocity] = event.data;
   const type = status & 0xf0;
 
-  if (type === 0x90 && velocity > 0) noteOn(note, velocity);
-  if (type === 0x80 || (type === 0x90 && velocity === 0)) noteOff(note);
+  if(type===0x90 && velocity>0) noteOn(note,velocity);
+  if(type===0x80 || (type===0x90 && velocity===0)) noteOff(note);
 }
 
-function noteOn(note, velocity) {
+let activeNotes = {};
 
-  keyMap[note]?.setAttribute("color", "#ff4444");
+function noteOn(note,velocity){
+  keyMap[note]?.setAttribute('color','#22c55e');
 
-  window.midiState.activeNotes[note] = {
-    start: performance.now()
+  activeNotes[note] = {
+    time: performance.now()
   };
 
-  if (window.midiState.recording) {
-    window.midiState.activeNotes[note].recordStart =
-      (performance.now() - recordStart)/1000;
-  }
-}
-
-function noteOff(note) {
-
-  const isBlack = [1,3,6,8,10].includes(note % 12);
-  keyMap[note]?.setAttribute("color", isBlack ? "#000" : "#fff");
-
-  if (!window.midiState.activeNotes[note]) return;
-
-  if (window.midiState.recording) {
-    const duration =
-      (performance.now() - window.midiState.activeNotes[note].start)/1000;
-
-    window.midiState.recorded.push({
-      note,
-      start: window.midiState.activeNotes[note].recordStart,
-      duration
+  if(isRecording){
+    recording.push({
+      type:'on',
+      midi:note,
+      velocity,
+      time:(performance.now()-recordStart)/1000
     });
   }
-
-  delete window.midiState.activeNotes[note];
 }
 
-// ---------- PLAYBACK LOOP ----------
-scene.addEventListener("tick", () => {
+function noteOff(note){
+  keyMap[note]?.setAttribute('color', isBlack(note)?'#000':'#fff');
 
-  if (!window.midiState.playing) return;
+  if(isRecording){
+    recording.push({
+      type:'off',
+      midi:note,
+      time:(performance.now()-recordStart)/1000
+    });
+  }
+}
 
-  const elapsed = (performance.now() - playbackStart)/1000;
+// ───────── RECORD / PLAY / STOP ─────────
 
-  window.midiState.recorded.forEach(n => {
-    if (!n.spawned && elapsed >= n.start) {
-      spawnNote(n);
-      n.spawned = true;
+document.querySelector('#btnRecord').onclick = ()=>{
+  recording = [];
+  isRecording = true;
+  isPlaying = false;
+  recordStart = performance.now();
+};
+
+document.querySelector('#btnStop').onclick = ()=>{
+  isRecording = false;
+  isPlaying = false;
+};
+
+document.querySelector('#btnPlay').onclick = ()=>{
+  if(!recording.length) return;
+  isPlaying = true;
+  isRecording = false;
+  playStart = performance.now();
+  buildRoll();
+};
+
+// ───────── BUILD SYNTHESIA ROLL ─────────
+
+function buildRoll(){
+
+  roll.innerHTML = "";
+  const active = {};
+
+  recording.forEach(ev=>{
+    if(ev.type==='on') active[ev.midi]=ev;
+    if(ev.type==='off' && active[ev.midi]){
+      const onEv = active[ev.midi];
+      createNote(ev.midi,onEv.time,ev.time-onEv.time);
+      delete active[ev.midi];
     }
   });
 
-  trebleLane.object3D.position.y -= SCROLL_SPEED;
-  bassLane.object3D.position.y -= SCROLL_SPEED;
-
-  const totalLength =
-    Math.max(...window.midiState.recorded.map(n => n.start+n.duration));
-
-  if (elapsed > totalLength) {
-    window.midiState.playing = false;
-    window.midiState.recorded.forEach(n => n.spawned = false);
-  }
-});
-
-function spawnNote(n) {
-
-  const lane = n.note >= MIDDLE_C ? trebleLane : bassLane;
-
-  const box = document.createElement("a-box");
-  box.setAttribute("width", 0.12);
-  box.setAttribute("height", n.duration * 2);
-  box.setAttribute("depth", 0.1);
-  box.setAttribute("color",
-    n.note >= MIDDLE_C ? "#00ffff" : "#ff00ff"
-  );
-
-  box.setAttribute("position", {
-    x: (n.note - MIDDLE_C)*0.12,
-    y: 0,
-    z: 0
-  });
-
-  lane.appendChild(box);
+  createBeatGrid();
 }
 
-});
-</script>
+function createNote(midi,start,duration){
 
+  const note = document.createElement('a-box');
+
+  note.setAttribute('width', isBlack(midi)?BLACK_WIDTH:WHITE_WIDTH);
+  note.setAttribute('depth',0.15);
+  note.setAttribute('height', duration*FALL_SPEED);
+  note.setAttribute('color',
+    isRightHand(midi)?'#38bdf8':'#a78bfa');
+
+  note.dataset.start = start;
+  note.dataset.duration = duration;
+  note.dataset.midi = midi;
+
+  roll.appendChild(note);
+}
+
+function createBeatGrid(){
+  const secondsPerBeat = 60/BPM;
+  const totalTime = Math.max(...recording.map(e=>e.time));
+
+  for(let t=0;t<totalTime;t+=secondsPerBeat){
+    const line=document.createElement('a-plane');
+    line.setAttribute('width',20);
+    line.setAttribute('height',0.005);
+    line.setAttribute('color','#444');
+    line.dataset.time=t;
+    roll.appendChild(line);
+  }
+}
+
+// ───────── FALLING ENGINE ─────────
+
+document.querySelector('a-scene')
+.addEventListener('tick',()=>{
+
+  if(!isPlaying) return;
+
+  const currentTime =
+    (performance.now()-playStart)/1000;
+
+  roll.childNodes.forEach(obj=>{
+
+    if(obj.tagName==='A-BOX'){
+
+      const start=parseFloat(obj.dataset.start);
+      const duration=parseFloat(obj.dataset.duration);
+      const midi=obj.dataset.midi;
+
+      const y=(start-currentTime)*FALL_SPEED;
+
+      obj.setAttribute('position',{
+        x:keyPos[midi]-(whiteIndex*WHITE_WIDTH)/2,
+        y:y+(duration*FALL_SPEED)/2,
+        z:0
+      });
+
+      if(Math.abs(y)<0.02){
+        keyMap[midi]
+          ?.setAttribute('color','#facc15');
+      }
+
+      if(y+duration*FALL_SPEED<-1){
+        obj.remove();
+      }
+    }
+
+    if(obj.tagName==='A-PLANE'){
+      const y=(obj.dataset.time-currentTime)
+              *FALL_SPEED;
+      obj.setAttribute('position',{
+        x:0,
+        y:y,
+        z:-0.05
+      });
+    }
+
+  });
+
+});
+
+</script>
 </body>
 </html>
