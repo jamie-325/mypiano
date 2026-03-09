@@ -2,7 +2,7 @@
 <html>
 <head>
     <meta charset="utf-8">
-    <title>Virtuoso VR - Final Layout</title>
+    <title>Virtuoso VR - Visible Rolls Fix</title>
     <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
     <script src="https://unpkg.com/aframe-event-set-component@5.0.0/dist/aframe-event-set-component.min.js"></script>
     <style>
@@ -18,14 +18,13 @@
 <body>
 
     <div id="desktop-ui">
-        <b style="color:#39FF14">VR V5.0 - FIXED ROLLS</b>
+        <b style="color:#39FF14">VR V6.0 - VISIBILITY FIX</b>
         <button onclick="selectScale('cMajor')">C Major</button>
         <button onclick="startSession(false)">▶ Listen</button>
-        <button onclick="startSession(true)">🎯 Score</button>
         <button onclick="stopAll()" style="color:red">Stop</button>
     </div>
 
-    <a-scene background="color: #020205" xr-mode-ui="enabled: true">
+    <a-scene background="color: #010102" xr-mode-ui="enabled: true">
         
         <a-assets>
             <a-mixin id="vr-btn" 
@@ -46,7 +45,6 @@
 
         <a-entity id="vr-menu" position="-3.5 1.5 -3.0" rotation="0 70 0">
             <a-text value="VR SETTINGS" position="0 0.8 0" align="center" color="#39FF14" width="6"></a-text>
-            
             <a-entity class="clickable" mixin="vr-btn" position="0 0.5 0" text="value: C MAJOR" onclick="selectScale('cMajor')"></a-entity>
             <a-entity class="clickable" mixin="vr-btn" position="0 0.25 0" text="value: G MAJOR" onclick="selectScale('gMajor')"></a-entity>
             <a-entity class="clickable" mixin="vr-btn" position="0 0 0" text="value: D MAJOR" onclick="selectScale('dMajor')"></a-entity>
@@ -55,14 +53,11 @@
             <a-entity class="clickable" mixin="vr-btn" position="0.35 -0.3 0" geometry="width:0.5" material="color: #1a4a1a" text="value: SCORE" onclick="startSession(true)"></a-entity>
 
             <a-text value="CALIBRATE" position="0 -0.6 0" align="center" width="2" color="#aaa"></a-text>
-            
             <a-entity position="0 -0.85 0">
                 <a-entity class="clickable" mixin="axis-btn" position="-0.25 0 0" text="value: < X" onclick="movePiano('x', -0.05)"></a-entity>
                 <a-entity class="clickable" mixin="axis-btn" position="0.25 0 0" text="value: X >" onclick="movePiano('x', 0.05)"></a-entity>
-                
                 <a-entity class="clickable" mixin="axis-btn" position="-0.25 -0.22 0" text="value: v Y" onclick="movePiano('y', -0.05)"></a-entity>
                 <a-entity class="clickable" mixin="axis-btn" position="0.25 -0.22 0" text="value: ^ Y" onclick="movePiano('y', 0.05)"></a-entity>
-                
                 <a-entity class="clickable" mixin="axis-btn" position="-0.25 -0.44 0" text="value: v Z" onclick="movePiano('z', -0.05)"></a-entity>
                 <a-entity class="clickable" mixin="axis-btn" position="0.25 -0.44 0" text="value: ^ Z" onclick="movePiano('z', 0.05)"></a-entity>
             </a-entity>
@@ -75,7 +70,7 @@
             <a-entity id="keys"></a-entity>
         </a-entity>
 
-        <a-camera position="0 1.6 0"></a-camera>
+        <a-camera position="0 1.6 0" camera="near: 0.1"></a-camera>
     </a-scene>
 
     <script>
@@ -136,11 +131,13 @@
             b.setAttribute('depth', 0.1);
             b.setAttribute('height', 0.5);
             const color = isPlayback ? '#FFD700' : '#00f0ff';
-            b.setAttribute('material', `shader: flat; color: ${color}`);
+            // V6 Fix: Added 'side: double' and 'shader: flat' to ensure visibility in Quest Browser
+            b.setAttribute('material', `shader: flat; color: ${color}; side: double;`);
             
             const x = keyPos[note] + document.getElementById('keys').object3D.position.x;
-            // Playback rolls start high, Live rolls start low
-            b.setAttribute('position', `${x} ${isPlayback ? 8 : 0} 0`);
+            // V6 Fix: Added a small Z-offset (0.1) so rolls fall IN FRONT of the rig coordinate system
+            b.setAttribute('position', `${x} ${isPlayback ? 8 : 0} 0.1`);
+            
             document.getElementById('rolls').appendChild(b);
             activeRolls.push({ el: b, isPlayback, hitTime: targetTime / 1000, x });
         }
@@ -181,16 +178,15 @@
         function tick() {
             const now = performance.now() / 1000;
             activeRolls.forEach(obj => {
-                // Calculation: Position = (TargetTime - CurrentTime) * Speed
                 let y = obj.isPlayback ? (obj.hitTime - now) * FALL_SPEED : (now - obj.hitTime) * FALL_SPEED;
-                obj.el.object3D.position.set(obj.x, y, 0);
+                // V6 Fix: Explicitly maintain the 0.1 Z-axis offset during the animation tick
+                obj.el.object3D.position.set(obj.x, y, 0.1);
             });
             
-            // CLEANUP LOGIC FIX: Increased lifetime to allow full scale to play
             activeRolls = activeRolls.filter(o => {
                 const age = now - o.hitTime;
-                if (o.isPlayback && age > 0.5) { o.el.remove(); return false; } // Delete after passing keys
-                if (!o.isPlayback && age > 3.0) { o.el.remove(); return false; } // Live rolls rise longer
+                if (o.isPlayback && age > 0.5) { o.el.remove(); return false; }
+                if (!o.isPlayback && age > 3.0) { o.el.remove(); return false; }
                 return true;
             });
             requestAnimationFrame(tick);
