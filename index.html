@@ -1,982 +1,178 @@
 <!DOCTYPE html>
 <html>
 <head>
-<meta charset="utf-8">
-<title>VR Piano Trainer</title>
-<script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
-<style>
-* { box-sizing:border-box; margin:0; padding:0; }
-
-/* ── HUD wrapper ─────────────────────────────────────── */
-#hud {
-  position:fixed; top:0; left:0; right:0; z-index:9000;
-  display:flex; flex-wrap:wrap; align-items:center; gap:6px;
-  padding:8px 14px;
-  background:linear-gradient(to bottom,rgba(0,0,0,.92),transparent);
-  font-family:'Courier New',monospace;
-  pointer-events:none;
-}
-#hud > * { pointer-events:all; }
-
-.chip {
-  display:flex; align-items:center; gap:5px;
-  background:rgba(0,0,0,.75); border:1px solid #333;
-  border-radius:4px; padding:4px 10px;
-  font-size:.72rem; color:#aaa;
-}
-.dot { width:7px; height:7px; border-radius:50%; background:#555; }
-.dot.on  { background:#22c55e; box-shadow:0 0 5px #22c55e; }
-.dot.err { background:#ef4444; }
-.dot.wait{ background:#f59e0b; }
-
-.hbtn {
-  padding:5px 13px; border:1px solid #444; border-radius:4px;
-  background:#111; color:#e0e0ff; cursor:pointer;
-  font:700 .72rem 'Courier New',monospace; letter-spacing:.04em;
-  transition:all .1s;
-}
-.hbtn:hover { background:#222; border-color:#888; }
-.hbtn:disabled { opacity:.3; cursor:not-allowed; }
-.hbtn.rec { border-color:#ef4444; color:#ef4444; }
-.hbtn.rec.active { background:#ef4444; color:#fff; }
-.hbtn.play { border-color:#38bdf8; color:#38bdf8; }
-.hbtn.play.active { background:#38bdf8; color:#000; }
-.hbtn.cal { border-color:#facc15; color:#facc15; }
-.hbtn.cal.active { background:#facc15; color:#000; }
-.hbtn.score { border-color:#22c55e; color:#22c55e; }
-.hbtn.score.active { background:#22c55e; color:#000; }
-
-#acc-chip { display:none; }
-#acc-chip.show { display:flex; }
-
-/* ── Scale selector ─────────────────────────────────── */
-#scale-row {
-  display:flex; align-items:center; gap:6px;
-  pointer-events:all;
-}
-#scale-row select {
-  padding:4px 8px; background:#111; color:#e0e0ff;
-  border:1px solid #444; border-radius:4px;
-  font:.72rem 'Courier New',monospace; cursor:pointer;
-}
-#bpm-row {
-  display:flex; align-items:center; gap:5px;
-  pointer-events:all; font-size:.72rem; color:#aaa;
-}
-#bpm-row input { width:80px; accent-color:#a78bfa; }
-
-/* ── Calibration panel ──────────────────────────────── */
-#cal-panel {
-  display:none; position:fixed; bottom:0; left:50%;
-  transform:translateX(-50%); z-index:9500;
-  background:rgba(0,0,0,.95); border:1px solid #facc15;
-  border-bottom:none; border-radius:8px 8px 0 0;
-  padding:14px 24px 12px;
-  font-family:'Courier New',monospace; color:#facc15;
-  min-width:580px; user-select:none;
-}
-#cal-panel.open { display:block; }
-#cal-panel h3 { text-align:center; font-size:.78rem; letter-spacing:.15em; color:#fef08a; margin-bottom:10px; }
-.cal-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; margin-bottom:8px; }
-.cal-row { display:flex; flex-direction:column; align-items:center; gap:4px; }
-.cal-row label { font-size:.6rem; color:#555; letter-spacing:.08em; text-transform:uppercase; }
-.cal-val { font-size:.9rem; font-weight:bold; color:#facc15; min-width:52px; text-align:center; }
-.cal-btns { display:flex; gap:3px; }
-.cb { padding:3px 9px; font:700 .7rem 'Courier New',monospace; background:#111; color:#ccc; border:1px solid #444; border-radius:3px; cursor:pointer; transition:all .07s; }
-.cb:hover { background:#facc15; color:#000; border-color:#facc15; }
-.cal-hint { text-align:center; font-size:.62rem; color:#444; margin-bottom:8px; }
-.cal-foot { display:flex; justify-content:center; gap:8px; }
-#cal-save { padding:6px 22px; background:#facc15; color:#000; border:none; border-radius:3px; cursor:pointer; font:700 .78rem 'Courier New',monospace; }
-#cal-save:hover { background:#fef08a; }
-#cal-reset { padding:6px 14px; background:#111; color:#555; border:1px solid #333; border-radius:3px; cursor:pointer; font:.78rem 'Courier New',monospace; }
-#cal-reset:hover { background:#333; color:#aaa; }
-
-/* ── Score log ──────────────────────────────────────── */
-#score-panel {
-  display:none; position:fixed; bottom:14px; right:14px; z-index:9000;
-  background:rgba(0,0,0,.92); border:1px solid #333; border-radius:6px;
-  padding:12px; width:220px; max-height:280px; overflow-y:auto;
-  font-family:'Courier New',monospace;
-}
-#score-panel.show { display:block; }
-#score-panel h4 { font-size:.68rem; color:#22c55e; margin-bottom:8px; letter-spacing:.1em; }
-#log-list { list-style:none; font-size:.7rem; }
-#log-list li { padding:2px 0; border-bottom:1px solid #111; }
-.hit  { color:#22c55e; }
-.miss { color:#ef4444; }
-#acc-footer { padding:8px 0 0; font-size:.72rem; color:#aaa; border-top:1px solid #222; margin-top:4px; }
-</style>
+    <meta charset="utf-8">
+    <title>Piano Virtuoso VR - Controller Edition</title>
+    <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
+    <script src="https://unpkg.com/aframe-event-set-component@5.0.0/dist/aframe-event-set-component.min.js"></script>
 </head>
 <body>
 
-<!-- ══════════════════════════════ HUD ══════════════════════════════ -->
-<div id="hud">
-
-  <!-- MIDI status -->
-  <div class="chip"><div class="dot wait" id="midi-dot"></div><span id="midi-txt">MIDI...</span></div>
-
-  <!-- Recorder -->
-  <button class="hbtn rec" id="btn-rec"  onclick="doRecord()">&#9210; REC</button>
-  <button class="hbtn"     id="btn-stop" onclick="doStop()" disabled>&#9209; STOP</button>
-  <button class="hbtn play"id="btn-play" onclick="doPlay()" disabled>&#9654; PLAY</button>
-  <div class="chip"><div class="dot" id="rec-dot"></div><span id="rec-timer">0:00</span></div>
-
-  <!-- Divider -->
-  <span style="color:#333;pointer-events:none">|</span>
-
-  <!-- Scale practice -->
-  <div id="scale-row">
-    <span style="color:#aaa;font-size:.7rem;">SCALE</span>
-    <select id="scale-sel" onchange="onScaleChange(this.value)">
-      <option value="">-- pick --</option>
-      <option value="cMajor">C Major</option>
-      <option value="gMajor">G Major</option>
-      <option value="dMajor">D Major</option>
-      <option value="aMinor">A Minor</option>
-      <option value="cPenta">C Pentatonic</option>
-    </select>
-  </div>
-  <div id="bpm-row">
-    <span>BPM</span>
-    <input type="range" id="bpm-sl" min="40" max="180" value="80" oninput="onBpmChange(this.value)">
-    <span id="bpm-val">80</span>
-  </div>
-  <button class="hbtn"      id="btn-listen" onclick="doListen()" disabled>&#9654; LISTEN</button>
-  <button class="hbtn score"id="btn-score"  onclick="doScore()"  disabled>&#127919; SCORE</button>
-  <button class="hbtn"      id="btn-stp2"   onclick="stopAll()"  style="color:#ef4444;">&#9209;</button>
-
-  <!-- Accuracy readout (shows during scoring) -->
-  <div class="chip" id="acc-chip">ACC: <span id="acc-val" style="color:#22c55e;margin-left:4px;">0%</span></div>
-
-  <!-- Divider -->
-  <span style="color:#333;pointer-events:none">|</span>
-
-  <!-- Calibration -->
-  <button class="hbtn cal" id="btn-cal" onclick="toggleCal()">&#10022; CAL</button>
-
-</div>
-
-<!-- ══════════════════════════ CALIBRATION PANEL ════════════════════ -->
-<div id="cal-panel">
-  <h3>&#10022; CALIBRATION &mdash; align virtual keys to your real piano</h3>
-  <div class="cal-grid">
-    <div class="cal-row"><label>X Left/Right</label><div class="cal-val" id="cv-x">0.00</div>
-      <div class="cal-btns">
-        <button class="cb" onclick="adj('x',-0.05)">&#9668;&#9668;</button>
-        <button class="cb" onclick="adj('x',-0.01)">&#9668;</button>
-        <button class="cb" onclick="adj('x', 0.01)">&#9658;</button>
-        <button class="cb" onclick="adj('x', 0.05)">&#9658;&#9658;</button>
-      </div>
-    </div>
-    <div class="cal-row"><label>Y Up/Down</label><div class="cal-val" id="cv-y">0.00</div>
-      <div class="cal-btns">
-        <button class="cb" onclick="adj('y', 0.05)">&#9650;&#9650;</button>
-        <button class="cb" onclick="adj('y', 0.01)">&#9650;</button>
-        <button class="cb" onclick="adj('y',-0.01)">&#9660;</button>
-        <button class="cb" onclick="adj('y',-0.05)">&#9660;&#9660;</button>
-      </div>
-    </div>
-    <div class="cal-row"><label>Z Near/Far</label><div class="cal-val" id="cv-z">0.00</div>
-      <div class="cal-btns">
-        <button class="cb" onclick="adj('z',-0.05)">&#9668;&#9668;</button>
-        <button class="cb" onclick="adj('z',-0.01)">&#9668;</button>
-        <button class="cb" onclick="adj('z', 0.01)">&#9658;</button>
-        <button class="cb" onclick="adj('z', 0.05)">&#9658;&#9658;</button>
-      </div>
-    </div>
-    <div class="cal-row"><label>Scale</label><div class="cal-val" id="cv-s">1.00</div>
-      <div class="cal-btns">
-        <button class="cb" onclick="adj('s',-0.05)">--</button>
-        <button class="cb" onclick="adj('s',-0.01)">-</button>
-        <button class="cb" onclick="adj('s', 0.01)">+</button>
-        <button class="cb" onclick="adj('s', 0.05)">++</button>
-      </div>
-    </div>
-    <div class="cal-row"><label>Rotate Y</label><div class="cal-val" id="cv-ry">0&deg;</div>
-      <div class="cal-btns">
-        <button class="cb" onclick="adj('ry',-5)">&#9668;&#9668;</button>
-        <button class="cb" onclick="adj('ry',-1)">&#9668;</button>
-        <button class="cb" onclick="adj('ry', 1)">&#9658;</button>
-        <button class="cb" onclick="adj('ry', 5)">&#9658;&#9658;</button>
-      </div>
-    </div>
-    <div class="cal-row"><label>Rotate X</label><div class="cal-val" id="cv-rx">0&deg;</div>
-      <div class="cal-btns">
-        <button class="cb" onclick="adj('rx',-5)">&#9668;&#9668;</button>
-        <button class="cb" onclick="adj('rx',-1)">&#9668;</button>
-        <button class="cb" onclick="adj('rx', 1)">&#9658;</button>
-        <button class="cb" onclick="adj('rx', 5)">&#9658;&#9658;</button>
-      </div>
-    </div>
-  </div>
-  <p class="cal-hint">Arrows=X/Z &bull; W/S=Y &bull; Q/E=RotY &bull; R/F=RotX &bull; +/-=Scale &bull; P=Save</p>
-  <div class="cal-foot">
-    <button id="cal-save" onclick="calSave()">SAVE</button>
-    <button id="cal-reset" onclick="calReset()">RESET</button>
-  </div>
-</div>
-
-<!-- ══════════════════════════ SCORE LOG ════════════════════════════ -->
-<div id="score-panel">
-  <h4>&#127919; PERFORMANCE LOG</h4>
-  <ul id="log-list"></ul>
-  <div id="acc-footer">Accuracy: <span id="acc-val2" style="color:#22c55e">0%</span></div>
-</div>
-
-
-<!-- ════════════════════════════ A-FRAME SCENE ══════════════════════ -->
-<a-scene background="color:#080810" xr-mode-ui="enabled: true">
-
-  <!-- Camera -->
-  <a-camera position="0 1.6 2" rotation="-8 0 0">
-    <a-cursor raycaster="objects:.clickable"
-      geometry="primitive:ring;radiusInner:0.009;radiusOuter:0.015"
-      material="color:#facc15;shader:flat;opacity:0.85">
-    </a-cursor>
-  </a-camera>
-
-  <!-- VR Controllers -->
-  <a-entity laser-controls="hand:left"
-    raycaster="objects:.clickable;far:12;showLine:true;lineColor:#facc15;lineOpacity:0.7">
-  </a-entity>
-  <a-entity laser-controls="hand:right"
-    raycaster="objects:.clickable;far:12;showLine:true;lineColor:#fff;lineOpacity:0.7">
-  </a-entity>
-
-  <!-- Lights -->
-  <a-light type="ambient"     color="#1a1a2e" intensity="2.5"></a-light>
-  <a-light type="directional" color="#ffffff" intensity="0.6" position="0 5 2"></a-light>
-  <a-light type="point" color="#38bdf8" intensity="0.3" position="0 3 -1" distance="10"></a-light>
-
-  <!-- Floor -->
-  <a-plane rotation="-90 0 0" width="30" height="30"
-    material="color:#050508;roughness:0.95"></a-plane>
-
-  <!-- Hit line (stays at piano level, follows cal X/Z) -->
-  <a-plane id="hitline" position="0 0.025 -3" width="20" height="0.012"
-    material="color:#ffffff;emissive:#ffffff;emissiveIntensity:0.8;opacity:0.5;transparent:true">
-  </a-plane>
-
-  <!-- CAL ROOT — everything calibratable lives inside here -->
-  <a-entity id="cal-root">
-
-    <!-- Piano platform -->
-    <a-box id="piano-cabinet" position="0 -0.06 -3"
-      width="5.6" height="0.12" depth="0.88"
-      material="color:#0a0a14;roughness:0.6;metalness:0.4"
-      shadow="cast:true;receive:true">
-    </a-box>
-
-    <!-- Keys -->
-    <a-entity id="piano" position="0 0 -3"></a-entity>
-
-    <!-- Falling / rising rolls -->
-    <a-entity id="roll"  position="0 0 -3"></a-entity>
-
-    <!-- Ghost wireframe (calibration overlay) -->
-    <a-entity id="ghost" visible="false" position="0 0 -3"></a-entity>
-
-  </a-entity>
-
-  <!-- ── VR TRANSPORT BUTTONS ── -->
-  <a-box class="clickable" id="vr-rec"  position="-2.1 1.5 -1.9" width="0.38" height="0.16" depth="0.08" material="color:#7f1d1d;emissive:#ef4444;emissiveIntensity:0.25"></a-box>
-  <a-text value="REC"  position="-2.1 1.5 -1.85" align="center" color="#fca5a5" width="1.1"></a-text>
-
-  <a-box class="clickable" id="vr-stop" position="-1.6 1.5 -1.9" width="0.38" height="0.16" depth="0.08" material="color:#222;emissive:#555;emissiveIntensity:0.1"></a-box>
-  <a-text value="STOP" position="-1.6 1.5 -1.85" align="center" color="#aaa"    width="1.1"></a-text>
-
-  <a-box class="clickable" id="vr-play" position="-1.1 1.5 -1.9" width="0.38" height="0.16" depth="0.08" material="color:#0c2a40;emissive:#38bdf8;emissiveIntensity:0.25"></a-box>
-  <a-text value="PLAY" position="-1.1 1.5 -1.85" align="center" color="#7dd3fc" width="1.1"></a-text>
-
-  <!-- ── VR SCALE BUTTONS ── -->
-  <a-box class="clickable" id="vr-listen" position="0.0 1.5 -1.9" width="0.46" height="0.16" depth="0.08" material="color:#1a2a00;emissive:#84cc16;emissiveIntensity:0.25"></a-box>
-  <a-text value="LISTEN" position="0.0 1.5 -1.85" align="center" color="#bef264" width="1.1"></a-text>
-
-  <a-box class="clickable" id="vr-score" position="0.55 1.5 -1.9" width="0.46" height="0.16" depth="0.08" material="color:#003322;emissive:#22c55e;emissiveIntensity:0.3"></a-box>
-  <a-text value="SCORE" position="0.55 1.5 -1.85" align="center" color="#86efac" width="1.1"></a-text>
-
-  <a-box class="clickable" id="vr-stp2"  position="1.1 1.5 -1.9" width="0.38" height="0.16" depth="0.08" material="color:#1a0000;emissive:#ef4444;emissiveIntensity:0.2"></a-box>
-  <a-text value="STOP" position="1.1 1.5 -1.85" align="center" color="#fca5a5" width="1.1"></a-text>
-
-  <!-- ── VR CAL BUTTON ── -->
-  <a-box class="clickable" id="vr-cal"   position="1.7 1.5 -1.9" width="0.38" height="0.16" depth="0.08" material="color:#1a1a00;emissive:#facc15;emissiveIntensity:0.35"></a-box>
-  <a-text value="CAL"  position="1.7 1.5 -1.85" align="center" color="#facc15" width="1.1"></a-text>
-
-  <!-- ── IN-VR CALIBRATION PANEL (floating left, visible when calOpen) ── -->
-  <a-entity id="vr-cal-panel" visible="false" position="-2.0 1.55 -1.6" rotation="0 28 0">
-
-    <!-- Board backing -->
-    <a-plane width="1.35" height="1.55" position="0 0 -0.003"
-      material="color:#facc15;shader:flat"></a-plane>
-    <a-plane width="1.33" height="1.53"
-      material="color:#0a0a00;shader:flat;opacity:0.97;transparent:true"></a-plane>
-
-    <!-- Title -->
-    <a-entity position="0 0.63 0.01"
-      text="value:CALIBRATION; align:center; width:3; color:#facc15"></a-entity>
-
-    <!-- X row -->
-    <a-entity position="0 0.44 0.01" text="value:X  LEFT / RIGHT; align:center; width:2.6; color:#666"></a-entity>
-    <a-entity id="vr-cv-x" position="0 0.30 0.01" text="value:0.00; align:center; width:3; color:#facc15"></a-entity>
-    <a-box class="clickable" id="vr-x-mm" position="-0.50 0.30 0.02" width="0.21" height="0.11" depth="0.04" color="#222"></a-box>
-    <a-entity position="-0.50 0.313 0.055" text="value:<<; align:center; width:1.1; color:#fff"></a-entity>
-    <a-box class="clickable" id="vr-x-m"  position="-0.26 0.30 0.02" width="0.21" height="0.11" depth="0.04" color="#444"></a-box>
-    <a-entity position="-0.26 0.313 0.055" text="value:< ; align:center; width:1.1; color:#fff"></a-entity>
-    <a-box class="clickable" id="vr-x-p"  position=" 0.26 0.30 0.02" width="0.21" height="0.11" depth="0.04" color="#444"></a-box>
-    <a-entity position=" 0.26 0.313 0.055" text="value: >; align:center; width:1.1; color:#fff"></a-entity>
-    <a-box class="clickable" id="vr-x-pp" position=" 0.50 0.30 0.02" width="0.21" height="0.11" depth="0.04" color="#222"></a-box>
-    <a-entity position=" 0.50 0.313 0.055" text="value:>>; align:center; width:1.1; color:#fff"></a-entity>
-
-    <!-- Y row -->
-    <a-entity position="0 0.13 0.01" text="value:Y  UP / DOWN; align:center; width:2.6; color:#666"></a-entity>
-    <a-entity id="vr-cv-y" position="0 -0.01 0.01" text="value:0.00; align:center; width:3; color:#facc15"></a-entity>
-    <a-box class="clickable" id="vr-y-mm" position="-0.50 -0.01 0.02" width="0.21" height="0.11" depth="0.04" color="#222"></a-box>
-    <a-entity position="-0.50 0.003 0.055" text="value:<<; align:center; width:1.1; color:#fff"></a-entity>
-    <a-box class="clickable" id="vr-y-m"  position="-0.26 -0.01 0.02" width="0.21" height="0.11" depth="0.04" color="#444"></a-box>
-    <a-entity position="-0.26 0.003 0.055" text="value:< ; align:center; width:1.1; color:#fff"></a-entity>
-    <a-box class="clickable" id="vr-y-p"  position=" 0.26 -0.01 0.02" width="0.21" height="0.11" depth="0.04" color="#444"></a-box>
-    <a-entity position=" 0.26 0.003 0.055" text="value: >; align:center; width:1.1; color:#fff"></a-entity>
-    <a-box class="clickable" id="vr-y-pp" position=" 0.50 -0.01 0.02" width="0.21" height="0.11" depth="0.04" color="#222"></a-box>
-    <a-entity position=" 0.50 0.003 0.055" text="value:>>; align:center; width:1.1; color:#fff"></a-entity>
-
-    <!-- Z row -->
-    <a-entity position="0 -0.18 0.01" text="value:Z  NEAR / FAR; align:center; width:2.6; color:#666"></a-entity>
-    <a-entity id="vr-cv-z" position="0 -0.32 0.01" text="value:0.00; align:center; width:3; color:#facc15"></a-entity>
-    <a-box class="clickable" id="vr-z-mm" position="-0.50 -0.32 0.02" width="0.21" height="0.11" depth="0.04" color="#222"></a-box>
-    <a-entity position="-0.50 -0.307 0.055" text="value:<<; align:center; width:1.1; color:#fff"></a-entity>
-    <a-box class="clickable" id="vr-z-m"  position="-0.26 -0.32 0.02" width="0.21" height="0.11" depth="0.04" color="#444"></a-box>
-    <a-entity position="-0.26 -0.307 0.055" text="value:< ; align:center; width:1.1; color:#fff"></a-entity>
-    <a-box class="clickable" id="vr-z-p"  position=" 0.26 -0.32 0.02" width="0.21" height="0.11" depth="0.04" color="#444"></a-box>
-    <a-entity position=" 0.26 -0.307 0.055" text="value: >; align:center; width:1.1; color:#fff"></a-entity>
-    <a-box class="clickable" id="vr-z-pp" position=" 0.50 -0.32 0.02" width="0.21" height="0.11" depth="0.04" color="#222"></a-box>
-    <a-entity position=" 0.50 -0.307 0.055" text="value:>>; align:center; width:1.1; color:#fff"></a-entity>
-
-    <!-- Scale row -->
-    <a-entity position="0 -0.49 0.01" text="value:SCALE  ZOOM; align:center; width:2.6; color:#666"></a-entity>
-    <a-entity id="vr-cv-s" position="0 -0.63 0.01" text="value:1.00; align:center; width:3; color:#facc15"></a-entity>
-    <a-box class="clickable" id="vr-s-mm" position="-0.50 -0.63 0.02" width="0.21" height="0.11" depth="0.04" color="#222"></a-box>
-    <a-entity position="-0.50 -0.617 0.055" text="value:--; align:center; width:1.1; color:#fff"></a-entity>
-    <a-box class="clickable" id="vr-s-m"  position="-0.26 -0.63 0.02" width="0.21" height="0.11" depth="0.04" color="#444"></a-box>
-    <a-entity position="-0.26 -0.617 0.055" text="value:- ; align:center; width:1.1; color:#fff"></a-entity>
-    <a-box class="clickable" id="vr-s-p"  position=" 0.26 -0.63 0.02" width="0.21" height="0.11" depth="0.04" color="#444"></a-box>
-    <a-entity position=" 0.26 -0.617 0.055" text="value: +; align:center; width:1.1; color:#fff"></a-entity>
-    <a-box class="clickable" id="vr-s-pp" position=" 0.50 -0.63 0.02" width="0.21" height="0.11" depth="0.04" color="#222"></a-box>
-    <a-entity position=" 0.50 -0.617 0.055" text="value:++; align:center; width:1.1; color:#fff"></a-entity>
-
-    <!-- Save -->
-    <a-box class="clickable" id="vr-cal-save" position="0 -0.80 0.02" width="0.65" height="0.13" depth="0.04" color="#4a3a00"></a-box>
-    <a-entity position="0 -0.787 0.055" text="value:SAVE; align:center; width:1.8; color:#facc15"></a-entity>
-
-  </a-entity>
-
-  <a-sky color="#03030a"></a-sky>
-</a-scene>
-
-
-<script>
-'use strict';
-
-// ═══════════════════════════════════════════════════════════════
-// CONSTANTS
-// ═══════════════════════════════════════════════════════════════
-const START_NOTE  = 21;   // A0
-const END_NOTE    = 108;  // C8
-const WHITE_W     = 0.12;
-const BLACK_W     = 0.07;
-const WHITE_D     = 0.80;
-const BLACK_D     = 0.50;
-const WHITE_H     = 0.20;
-const BLACK_H     = 0.15;
-const FALL_SPEED  = 2.0;  // units per second
-const HIT_WINDOW  = 250;  // ms timing tolerance for scoring
-
-const NOTE_NAMES  = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
-const isBlack     = n => [1,3,6,8,10].includes(n % 12);
-const isRH        = n => n >= 60;
-function nn(m)    { return NOTE_NAMES[m%12] + (Math.floor(m/12)-1); }
-function fmtT(ms) { const s=Math.floor(ms/1000),m=Math.floor(s/60); return m+':'+String(s%60).padStart(2,'0'); }
-
-// Scale library — each plays ascending then descending
-const SCALE_LIB = {
-  cMajor: [60,62,64,65,67,69,71,72],
-  gMajor: [55,57,59,60,62,64,66,67],
-  dMajor: [62,64,66,67,69,71,73,74],
-  aMinor: [57,59,60,62,64,65,67,69],
-  cPenta: [60,62,64,67,69,72],
-};
-
-// ═══════════════════════════════════════════════════════════════
-// ELEMENT REFS
-// ═══════════════════════════════════════════════════════════════
-const pianoEl   = document.getElementById('piano');
-const rollEl    = document.getElementById('roll');
-const ghostEl   = document.getElementById('ghost');
-const calRoot   = document.getElementById('cal-root');
-const hitlineEl = document.getElementById('hitline');
-
-// ═══════════════════════════════════════════════════════════════
-// BUILD 88-KEY PIANO
-// ═══════════════════════════════════════════════════════════════
-const keyMap = {}, keyPos = {};
-let whiteCount = 0;
-
-for (let n = START_NOTE; n <= END_NOTE; n++) {
-  const black = isBlack(n);
-  const key   = document.createElement('a-box');
-  key.setAttribute('class', 'clickable');
-  key.dataset.note = n;
-
-  let kx;
-  if (!black) {
-    kx = whiteCount * WHITE_W;
-    key.setAttribute('position', { x:kx, y:0, z:0 });
-    keyPos[n] = kx;
-    whiteCount++;
-  } else {
-    kx = (whiteCount-1)*WHITE_W + WHITE_W/2;
-    key.setAttribute('position', { x:kx, y:0.05, z:-0.15 });
-    keyPos[n] = kx;
-  }
-
-  key.setAttribute('width',  black ? BLACK_W : WHITE_W);
-  key.setAttribute('height', black ? BLACK_H : WHITE_H);
-  key.setAttribute('depth',  black ? BLACK_D : WHITE_D);
-  key.setAttribute('material', black
-    ? 'color:#111118; roughness:0.3; metalness:0.5'
-    : 'color:#f0f0f0; roughness:0.2; metalness:0.05');
-
-  // Click to play note
-  key.addEventListener('click', () => {
-    playNote(n, 0.15);
-    flashKey(n, isRH(n) ? '#22c55e' : '#a78bfa');
-    setTimeout(() => resetKey(n), 350);
-  });
-
-  pianoEl.appendChild(key);
-  keyMap[n] = key;
-
-  // Octave label
-  if (n % 12 === 0) {
-    const lbl = document.createElement('a-text');
-    lbl.setAttribute('value', nn(n));
-    lbl.setAttribute('position', { x:kx, y:-0.02, z:0.36 });
-    lbl.setAttribute('rotation', '-90 0 0');
-    lbl.setAttribute('align', 'center');
-    lbl.setAttribute('color', '#555');
-    lbl.setAttribute('width', '0.5');
-    pianoEl.appendChild(lbl);
-  }
-}
-
-const pianoTotalW = whiteCount * WHITE_W;
-pianoEl.object3D.position.x  = -pianoTotalW / 2;
-rollEl.object3D.position.x   = -pianoTotalW / 2;
-ghostEl.object3D.position.x  = -pianoTotalW / 2;
-
-// Ghost wireframe overlay
-(function buildGhost() {
-  for (let n = START_NOTE; n <= END_NOTE; n++) {
-    const black = isBlack(n);
-    const g = document.createElement('a-box');
-    g.setAttribute('width',  black ? BLACK_W : WHITE_W);
-    g.setAttribute('height', black ? BLACK_H : WHITE_H);
-    g.setAttribute('depth',  black ? BLACK_D : WHITE_D);
-    g.setAttribute('position', { x:keyPos[n], y:black?0.05:0, z:black?-0.15:0 });
-    g.setAttribute('material', 'color:#facc15; wireframe:true; opacity:0.5; transparent:true');
-    ghostEl.appendChild(g);
-  }
-})();
-
-// ═══════════════════════════════════════════════════════════════
-// KEY VISUALS
-// ═══════════════════════════════════════════════════════════════
-function flashKey(n, color) {
-  const k = keyMap[n]; if (!k) return;
-  k.setAttribute('material', `color:${color}; emissive:${color}; emissiveIntensity:0.7; roughness:0.2`);
-}
-function resetKey(n) {
-  const k = keyMap[n]; if (!k) return;
-  const black = isBlack(n);
-  k.setAttribute('material', black
-    ? 'color:#111118; roughness:0.3; metalness:0.5; emissiveIntensity:0'
-    : 'color:#f0f0f0; roughness:0.2; metalness:0.05; emissiveIntensity:0');
-}
-
-// ═══════════════════════════════════════════════════════════════
-// AUDIO — Web Audio oscillator (no external files needed)
-// ═══════════════════════════════════════════════════════════════
-let audioCtx = null;
-function ensureAudio() {
-  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-  if (audioCtx.state === 'suspended') audioCtx.resume();
-}
-function playNote(midi, vol = 0.12) {
-  ensureAudio();
-  const freq = 440 * Math.pow(2, (midi - 69) / 12);
-  const o = audioCtx.createOscillator();
-  const g = audioCtx.createGain();
-  o.type = 'triangle';
-  o.frequency.value = freq;
-  g.gain.setValueAtTime(vol, audioCtx.currentTime);
-  g.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.8);
-  o.connect(g); g.connect(audioCtx.destination);
-  o.start(); o.stop(audioCtx.currentTime + 0.8);
-}
-function playMetronome() {
-  ensureAudio();
-  const o = audioCtx.createOscillator();
-  const g = audioCtx.createGain();
-  o.frequency.value = 900;
-  g.gain.setValueAtTime(0.06, audioCtx.currentTime);
-  g.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.04);
-  o.connect(g); g.connect(audioCtx.destination);
-  o.start(); o.stop(audioCtx.currentTime + 0.04);
-}
-
-// ═══════════════════════════════════════════════════════════════
-// MIDI INPUT
-// ═══════════════════════════════════════════════════════════════
-navigator.requestMIDIAccess?.().then(access => {
-  const dot = document.getElementById('midi-dot');
-  const txt = document.getElementById('midi-txt');
-  if (!access.inputs.size) {
-    dot.className = 'dot wait';
-    txt.textContent = 'No MIDI device';
-  } else {
-    dot.className = 'dot on';
-    txt.textContent = [...access.inputs.values()].map(i=>i.name).join(', ');
-  }
-  access.inputs.forEach(input => {
-    input.onmidimessage = e => {
-      const [st, note, vel] = e.data;
-      const type = st & 0xf0;
-      if (type === 0x90 && vel > 0) handleNoteOn(note, vel);
-      if (type === 0x80 || (type === 0x90 && vel === 0)) handleNoteOff(note);
-    };
-  });
-  access.onstatechange = () => {
-    const inputs = [...access.inputs.values()];
-    dot.className = inputs.length ? 'dot on' : 'dot wait';
-    txt.textContent = inputs.length ? inputs.map(i=>i.name).join(', ') : 'No MIDI device';
-    inputs.forEach(input => { input.onmidimessage = e => {
-      const [st,note,vel]=e.data; const type=st&0xf0;
-      if(type===0x90&&vel>0) handleNoteOn(note,vel);
-      if(type===0x80||(type===0x90&&vel===0)) handleNoteOff(note);
-    }; });
-  };
-}).catch(err => {
-  document.getElementById('midi-dot').className='dot err';
-  document.getElementById('midi-txt').textContent='MIDI error: '+err.message;
-});
-
-// ═══════════════════════════════════════════════════════════════
-// NOTE ON / OFF  (feeds recorder + scorer + live flash)
-// ═══════════════════════════════════════════════════════════════
-function handleNoteOn(note, velocity) {
-  ensureAudio();
-  playNote(note, velocity / 127 * 0.18);
-  flashKey(note, isRH(note) ? '#22c55e' : '#a78bfa');
-
-  // Recorder
-  if (isRecording) {
-    recording.push({ type:'on', midi:note, velocity,
-      time:(performance.now()-recordStart)/1000 });
-  }
-
-  // Scale scorer — check if this note is the next expected note
-  if (isScoring) checkHit(note);
-
-  // Live rising roll during scoring
-  if (isScoring || isListening) {
-    spawnRoll(note, false, performance.now());
-  }
-}
-
-function handleNoteOff(note) {
-  resetKey(note);
-  if (isRecording) {
-    recording.push({ type:'off', midi:note,
-      time:(performance.now()-recordStart)/1000 });
-  }
-}
-
-// ═══════════════════════════════════════════════════════════════
-// RECORDER
-// ═══════════════════════════════════════════════════════════════
-let isRecording=false, isPlaying=false;
-let recordStart=0, playStart=0, recording=[];
-let recTimerInt=null;
-
-function doRecord() {
-  stopAll();
-  recording=[]; isRecording=true;
-  recordStart=performance.now();
-  document.getElementById('btn-rec').classList.add('active');
-  document.getElementById('btn-stop').disabled=false;
-  document.getElementById('rec-dot').className='dot err';
-  recTimerInt=setInterval(()=>{
-    document.getElementById('rec-timer').textContent=fmtT(performance.now()-recordStart);
-  },500);
-}
-
-function doPlay() {
-  if (!recording.length) return;
-  stopAll();
-  isPlaying=true; playStart=performance.now();
-  document.getElementById('btn-play').classList.add('active');
-  document.getElementById('btn-stop').disabled=false;
-  buildRoll();
-  recording.forEach(ev=>{
-    setTimeout(()=>{
-      if(!isPlaying) return;
-      if(ev.type==='on')  { flashKey(ev.midi,'#facc15'); playNote(ev.midi); }
-      if(ev.type==='off') resetKey(ev.midi);
-    }, ev.time*1000);
-  });
-  const dur=recording[recording.length-1].time*1000;
-  setTimeout(()=>{ if(isPlaying) stopAll(); }, dur+500);
-}
-
-function doStop() {
-  if (isRecording) {
-    isRecording=false;
-    clearInterval(recTimerInt);
-    document.getElementById('btn-rec').classList.remove('active');
-    document.getElementById('rec-dot').className='dot';
-    document.getElementById('btn-play').disabled=false;
-  }
-  if (isPlaying) {
-    isPlaying=false;
-    document.getElementById('btn-play').classList.remove('active');
-    rollEl.innerHTML='';
-    for(let n=START_NOTE;n<=END_NOTE;n++) resetKey(n);
-  }
-  document.getElementById('btn-stop').disabled=true;
-}
-
-// ═══════════════════════════════════════════════════════════════
-// SCALE PRACTICE — Listen & Score modes
-// ═══════════════════════════════════════════════════════════════
-let currentBPM   = 80;
-let scaleKey     = '';
-let scaleNotes   = [];   // [{midi, time(ms from start), claimed}]
-let practiceTimers=[];
-let isListening  = false;
-let isScoring    = false;
-let gameStart    = 0;
-let score=0, totalNotes=0;
-let scorePointer = 0;  // index into scaleNotes for sequential checking
-
-function onBpmChange(v) {
-  currentBPM=parseInt(v);
-  document.getElementById('bpm-val').textContent=v;
-}
-
-function onScaleChange(key) {
-  scaleKey=key;
-  const e = document.getElementById('btn-listen');
-  const s = document.getElementById('btn-score');
-  const hasScale = !!key;
-  e.disabled=!hasScale; s.disabled=!hasScale;
-}
-
-function buildScaleNotes() {
-  if (!scaleKey || !SCALE_LIB[scaleKey]) return false;
-  const base   = SCALE_LIB[scaleKey];
-  const ascDesc = [...base, ...[...base].reverse().slice(1)];
-  const msPerBeat = 60000 / currentBPM;
-  scaleNotes = ascDesc.map((n,i)=>({ midi:n, time:i*msPerBeat, claimed:false }));
-  return true;
-}
-
-function doListen() {
-  if (!buildScaleNotes()) return;
-  stopAll();
-  isListening=true;
-  document.getElementById('btn-listen').classList.add('active');
-  document.getElementById('btn-stp2').disabled=false;
-
-  const delay=1500;
-  gameStart=performance.now()+delay;
-
-  scaleNotes.forEach(ev=>{
-    // Gold falling roll
-    spawnRoll(ev.midi, true, gameStart + ev.time);
-    // Audio playback
-    const t=setTimeout(()=>{ playNote(ev.midi); playMetronome(); }, delay+ev.time);
-    practiceTimers.push(t);
-  });
-  const total=scaleNotes[scaleNotes.length-1].time;
-  practiceTimers.push(setTimeout(()=>{ isListening=false; document.getElementById('btn-listen').classList.remove('active'); }, delay+total+1500));
-}
-
-function doScore() {
-  if (!buildScaleNotes()) return;
-  stopAll();
-  isScoring=true; score=0; scorePointer=0;
-  totalNotes=scaleNotes.length;
-  document.getElementById('btn-score').classList.add('active');
-  document.getElementById('btn-stp2').disabled=false;
-  document.getElementById('score-panel').className='show';
-  document.getElementById('log-list').innerHTML='';
-  document.getElementById('acc-chip').className='chip show';
-
-  const delay=1500;
-  gameStart=performance.now()+delay;
-
-  // Spawn gold guide rolls + metronome only (no audio — student plays live)
-  scaleNotes.forEach(ev=>{
-    spawnRoll(ev.midi, true, gameStart + ev.time);
-    const t=setTimeout(()=>{ playMetronome(); }, delay+ev.time);
-    practiceTimers.push(t);
-  });
-  const total=scaleNotes[scaleNotes.length-1].time;
-  practiceTimers.push(setTimeout(()=>{
-    isScoring=false;
-    document.getElementById('btn-score').classList.remove('active');
-    updateAcc();
-  }, delay+total+2000));
-}
-
-function checkHit(note) {
-  if (!isScoring || !scaleNotes.length) return;
-  const elapsed = performance.now() - gameStart;
-
-  // Find nearest unclaimed note matching this midi within the hit window
-  let best=null, bestDiff=Infinity;
-  scaleNotes.forEach(ev=>{
-    if (ev.claimed) return;
-    const diff=Math.abs(ev.time - elapsed);
-    if (ev.midi===note && diff<HIT_WINDOW && diff<bestDiff) {
-      best=ev; bestDiff=diff;
-    }
-  });
-
-  const log  = document.getElementById('log-list');
-  const li   = document.createElement('li');
-  if (best) {
-    best.claimed=true; score++;
-    li.className='hit';
-    li.textContent='\u2713 HIT  '+nn(note)+'  ('+Math.round(bestDiff)+'ms)';
-  } else {
-    li.className='miss';
-    li.textContent='\u2717 WRONG  '+nn(note);
-  }
-  log.appendChild(li);
-  log.scrollTop=log.scrollHeight;
-  updateAcc();
-}
-
-function updateAcc() {
-  const pct = totalNotes ? Math.round((score/totalNotes)*100) : 0;
-  document.getElementById('acc-val').textContent  = pct+'%';
-  document.getElementById('acc-val2').textContent = pct+'%';
-}
-
-function stopAll() {
-  isListening=false; isScoring=false; isPlaying=false;
-  practiceTimers.forEach(clearTimeout); practiceTimers=[];
-  activeRolls.forEach(r=>r.el.remove()); activeRolls=[];
-  rollEl.innerHTML='';
-  for(let n=START_NOTE;n<=END_NOTE;n++) resetKey(n);
-  document.getElementById('btn-listen').classList.remove('active');
-  document.getElementById('btn-score').classList.remove('active');
-  document.getElementById('btn-stp2').disabled=true;
-  document.getElementById('acc-chip').className='chip';
-}
-
-// ═══════════════════════════════════════════════════════════════
-// SYNTHESIA ROLL ENGINE
-// Gold (isGuide=true)  — fall from above toward the keys
-// Cyan (isGuide=false) — live notes played by student, rise up
-// ═══════════════════════════════════════════════════════════════
-const activeRolls=[];
-
-function spawnRoll(midi, isGuide, targetMs) {
-  const black = isBlack(midi);
-  const b = document.createElement('a-box');
-  b.setAttribute('width',  black ? BLACK_W-0.01 : WHITE_W-0.01);
-  b.setAttribute('depth',  0.12);
-  b.setAttribute('height', 0.5);
-  const col = isGuide ? '#FFD700' : (isRH(midi)?'#22c55e':'#a78bfa');
-  b.setAttribute('material',
-    `color:${col}; emissive:${col}; emissiveIntensity:0.55; opacity:0.88; transparent:true`);
-  b.dataset.midi     = midi;
-  b.dataset.guide    = isGuide ? '1' : '0';
-  b.dataset.targetMs = targetMs;
-  b.dataset.spawnMs  = performance.now();
-  rollEl.appendChild(b);
-  activeRolls.push({ el:b, midi, isGuide, targetMs });
-}
-
-// Build roll for recorded playback (static positions, tick engine drives them)
-function buildRoll() {
-  rollEl.innerHTML=''; activeRolls.length=0;
-  const active={};
-  recording.forEach(ev=>{
-    if (ev.type==='on') active[ev.midi]=ev;
-    if (ev.type==='off' && active[ev.midi]) {
-      const on=active[ev.midi];
-      createStaticNote(ev.midi, on.time, ev.time-on.time);
-      delete active[ev.midi];
-    }
-  });
-}
-function createStaticNote(midi, start, duration) {
-  const b=document.createElement('a-box');
-  b.setAttribute('width',  isBlack(midi)?BLACK_W-0.01:WHITE_W-0.01);
-  b.setAttribute('depth',  0.12);
-  b.setAttribute('height', Math.max(0.04, duration*FALL_SPEED));
-  const col=isRH(midi)?'#38bdf8':'#a78bfa';
-  b.setAttribute('material',`color:${col};emissive:${col};emissiveIntensity:0.4;opacity:0.85;transparent:true`);
-  b.dataset.start=start; b.dataset.duration=duration; b.dataset.midi=midi; b.dataset.static='1';
-  rollEl.appendChild(b);
-}
-
-// ═══════════════════════════════════════════════════════════════
-// TICK — moves all rolls every frame
-// ═══════════════════════════════════════════════════════════════
-document.querySelector('a-scene').addEventListener('tick', () => {
-  const now     = performance.now();
-  const nowSec  = now / 1000;
-
-  // ── Live/guide spawned rolls ────────────────────────────────
-  for (let i=activeRolls.length-1; i>=0; i--) {
-    const r=activeRolls[i];
-    const x=(keyPos[r.midi]||0);  // already centred by pianoEl offset
-    const dtSec=(r.targetMs - now)/1000;
-
-    if (r.isGuide) {
-      // Gold: falls from above; y=0 is the hit line, arrives at targetMs
-      const y=dtSec*FALL_SPEED + 0.25;
-      r.el.object3D.position.set(x, y, -0.05);
-      if (dtSec < -0.25) { r.el.remove(); activeRolls.splice(i,1); }
-    } else {
-      // Cyan/green: rises from key
-      const age=(now-r.targetMs)/1000;
-      const y=age*FALL_SPEED + 0.25;
-      r.el.object3D.position.set(x, y, -0.05);
-      if (age>1.8) { r.el.remove(); activeRolls.splice(i,1); }
-    }
-  }
-
-  // ── Static recorded rolls (playback) ───────────────────────
-  if (!isPlaying) return;
-  const currentTime=(performance.now()-playStart)/1000;
-  rollEl.childNodes.forEach(obj=>{
-    if (obj.dataset.static!=='1') return;
-    const start   =parseFloat(obj.dataset.start);
-    const duration=parseFloat(obj.dataset.duration);
-    const midi    =parseInt(obj.dataset.midi);
-    const y=(start-currentTime)*FALL_SPEED;
-    obj.object3D.position.set(keyPos[midi]||0, y+(duration*FALL_SPEED)/2, -0.05);
-    if (Math.abs(y)<0.04) flashKey(midi,'#facc15');
-    if (y+duration*FALL_SPEED < -0.5) obj.remove();
-  });
-});
-
-// ═══════════════════════════════════════════════════════════════
-// CALIBRATION
-// ═══════════════════════════════════════════════════════════════
-const CAL_KEY='vr_piano_cal_v4';
-const CAL_DEF={x:0,y:0,z:0,s:1,rx:0,ry:0};
-let C=Object.assign({},CAL_DEF,JSON.parse(localStorage.getItem(CAL_KEY)||'null')||{});
-let calOpen=false;
-
-function applyC() {
-  const pz=(-3+C.z).toFixed(3);
-  calRoot.setAttribute('position',`${C.x.toFixed(3)} ${C.y.toFixed(3)} 0`);
-  calRoot.setAttribute('rotation',`${C.rx.toFixed(1)} ${C.ry.toFixed(1)} 0`);
-  calRoot.setAttribute('scale',   `${C.s.toFixed(3)} ${C.s.toFixed(3)} ${C.s.toFixed(3)}`);
-  hitlineEl.setAttribute('position',`${C.x.toFixed(3)} 0.025 ${(-3+C.z).toFixed(3)}`);
-
-  // 2D panel
-  document.getElementById('cv-x').textContent  = C.x.toFixed(2);
-  document.getElementById('cv-y').textContent  = C.y.toFixed(2);
-  document.getElementById('cv-z').textContent  = C.z.toFixed(2);
-  document.getElementById('cv-s').textContent  = C.s.toFixed(2);
-  document.getElementById('cv-ry').textContent = C.ry.toFixed(0)+'\u00b0';
-  document.getElementById('cv-rx').textContent = C.rx.toFixed(0)+'\u00b0';
-
-  // 3D VR panel
-  const el=id=>document.getElementById(id);
-  const set=(id,v)=>{ const e=el(id); if(e) e.setAttribute('text','value',v); };
-  set('vr-cv-x', C.x.toFixed(2)+'m');
-  set('vr-cv-y', C.y.toFixed(2)+'m');
-  set('vr-cv-z', C.z.toFixed(2)+'m');
-  set('vr-cv-s', C.s.toFixed(2));
-}
-
-function adj(axis,delta){
-  C[axis]=parseFloat((C[axis]+delta).toFixed(4));
-  applyC();
-}
-
-function calSave(){
-  localStorage.setItem(CAL_KEY,JSON.stringify(C));
-  const b=document.getElementById('cal-save');
-  b.textContent='SAVED \u2713'; b.style.background='#22c55e';
-  setTimeout(()=>{ b.textContent='SAVE'; b.style.background=''; },1400);
-}
-
-function calReset(){ C=Object.assign({},CAL_DEF); applyC(); }
-
-function toggleCal(){
-  calOpen=!calOpen;
-  document.getElementById('cal-panel').classList.toggle('open',calOpen);
-  document.getElementById('btn-cal').classList.toggle('active',calOpen);
-  document.getElementById('vr-cal-panel').setAttribute('visible',calOpen?'true':'false');
-  ghostEl.setAttribute('visible',calOpen?'true':'false');
-}
-
-window.addEventListener('keydown',e=>{
-  if(!calOpen) return;
-  const map={
-    'ArrowLeft':()=>adj('x',-0.01),'ArrowRight':()=>adj('x',0.01),
-    'ArrowUp':  ()=>adj('z',-0.01),'ArrowDown': ()=>adj('z',0.01),
-    'w':()=>adj('y',0.01),'W':()=>adj('y',0.01),
-    's':()=>adj('y',-0.01),'S':()=>adj('y',-0.01),
-    'q':()=>adj('ry',-1), 'Q':()=>adj('ry',-1),
-    'e':()=>adj('ry',1),  'E':()=>adj('ry',1),
-    'r':()=>adj('rx',-1), 'R':()=>adj('rx',-1),
-    'f':()=>adj('rx',1),  'F':()=>adj('rx',1),
-    '+':()=>adj('s',0.01),'=':()=>adj('s',0.01),
-    '-':()=>adj('s',-0.01),'_':()=>adj('s',-0.01),
-    'p':calSave,'P':calSave,
-  };
-  if(map[e.key]){ e.preventDefault(); map[e.key](); }
-});
-
-applyC(); // Apply on load
-
-// ═══════════════════════════════════════════════════════════════
-// VR BUTTON WIRING
-// ═══════════════════════════════════════════════════════════════
-const wire=(id,fn)=>{ const e=document.getElementById(id); if(e) e.addEventListener('click',fn); };
-wire('vr-rec',    doRecord);
-wire('vr-stop',   doStop);
-wire('vr-play',   doPlay);
-wire('vr-listen', doListen);
-wire('vr-score',  doScore);
-wire('vr-stp2',   stopAll);
-wire('vr-cal',    toggleCal);
-wire('vr-cal-save', calSave);
-// Cal panel VR buttons
-wire('vr-x-mm',()=>adj('x',-0.05)); wire('vr-x-m',()=>adj('x',-0.01));
-wire('vr-x-p', ()=>adj('x', 0.01)); wire('vr-x-pp',()=>adj('x', 0.05));
-wire('vr-y-mm',()=>adj('y',-0.05)); wire('vr-y-m',()=>adj('y',-0.01));
-wire('vr-y-p', ()=>adj('y', 0.01)); wire('vr-y-pp',()=>adj('y', 0.05));
-wire('vr-z-mm',()=>adj('z',-0.05)); wire('vr-z-m',()=>adj('z',-0.01));
-wire('vr-z-p', ()=>adj('z', 0.01)); wire('vr-z-pp',()=>adj('z', 0.05));
-wire('vr-s-mm',()=>adj('s',-0.05)); wire('vr-s-m',()=>adj('s',-0.01));
-wire('vr-s-p', ()=>adj('s', 0.01)); wire('vr-s-pp',()=>adj('s', 0.05));
-
-// 2D HUD transport buttons also wired via onclick= in HTML
-// Scale buttons
-document.getElementById('btn-listen').addEventListener('click', doListen);
-document.getElementById('btn-score').addEventListener('click',  doScore);
-document.getElementById('btn-stp2').addEventListener('click',   stopAll);
-
-</script>
+    <a-scene background="color: #050510" xr-mode-ui="enabled: true">
+        
+        <a-assets>
+            <a-mixin id="vr-button" 
+                     geometry="primitive: plane; width: 0.5; height: 0.2" 
+                     material="color: #222; shader: flat"
+                     event-set__mouseenter="material.color: #39FF14"
+                     event-set__mouseleave="material.color: #222"
+                     text="align: center; width: 2; color: white"></a-mixin>
+        </a-assets>
+
+        <a-entity id="leftHand" laser-controls="hand: left" raycaster="objects: .clickable; far: 5"></a-entity>
+        <a-entity id="rightHand" laser-controls="hand: right" raycaster="objects: .clickable; far: 5"></a-entity>
+
+        <a-entity id="menu-ui" position="0 1.8 -1.2" rotation="10 0 0">
+            <a-text value="SCALE COMMAND CENTER" position="0 0.4 0" align="center" width="3" color="#39FF14"></a-text>
+            
+            <a-entity id="btn-c" class="clickable" mixin="vr-button" position="-0.6 0.1 0" text="value: C MAJOR" onclick="selectScale('cMajor')"></a-entity>
+            <a-entity id="btn-g" class="clickable" mixin="vr-button" position="0 0.1 0" text="value: G MAJOR" onclick="selectScale('gMajor')"></a-entity>
+            <a-entity id="btn-d" class="clickable" mixin="vr-button" position="0.6 0.1 0" text="value: D MAJOR" onclick="selectScale('dMajor')"></a-entity>
+
+            <a-entity id="btn-listen" class="clickable" mixin="vr-button" position="-0.3 -0.2 0" 
+                      material="color: #111" text="value: LISTEN" onclick="startSession(false)"></a-entity>
+            
+            <a-entity id="btn-score" class="clickable" mixin="vr-button" position="0.3 -0.2 0" 
+                      material="color: #1a4a1a" text="value: SCORE MODE" onclick="startSession(true)"></a-entity>
+
+            <a-entity id="btn-stop" class="clickable" mixin="vr-button" position="0 -0.5 0" 
+                      geometry="width: 1.1" material="color: #500" text="value: STOP ALL" onclick="stopAll()"></a-entity>
+        </a-entity>
+
+        <a-entity id="piano-rig" position="0 0.5 -1.8">
+            <a-entity id="rolls"></a-entity>
+            <a-entity id="keys"></a-entity>
+        </a-entity>
+
+        <a-camera position="0 1.6 0.5" wasd-controls-enabled="false"></a-camera>
+        <a-light type="ambient" intensity="0.8"></a-light>
+    </a-scene>
+
+    <script>
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        const FALL_SPEED = 4.0; 
+        const HIT_WINDOW = 200; 
+
+        let keyMap = {}, keyPos = {}, activeRolls = [], scaleNotes = [];
+        let playbackTimers = [], isScoring = false;
+        let gameStart = 0, currentBPM = 90;
+
+        const SCALE_LIB = {
+            cMajor: [60,62,64,65,67,69,71,72,74,76,77,79,81,83,84],
+            gMajor: [55,57,59,60,62,64,66,67,69,71,72,74,76,78,79],
+            dMajor: [62,64,66,67,69,71,73,74,76,78,79,81,83,85,86]
+        };
+
+        function buildKeys() {
+            let curX = 0;
+            const keysEl = document.getElementById('keys');
+            const WHITE_W = 0.085, BLACK_W = 0.05, GAP = 0.005;
+
+            for(let n=21; n<=108; n++) {
+                const isB = [1,3,6,8,10].includes(n%12);
+                const k = document.createElement('a-box');
+                let x = isB ? curX - (WHITE_W/2 + GAP/2) : curX;
+                k.setAttribute('width', isB ? BLACK_W : WHITE_W);
+                k.setAttribute('height', 0.1);
+                k.setAttribute('depth', isB ? 0.4 : 0.75);
+                k.setAttribute('color', isB ? '#111' : '#fff');
+                k.setAttribute('position', `${x} ${isB ? 0.06 : 0} ${isB ? -0.15 : 0}`);
+                keysEl.appendChild(k);
+                keyMap[n] = k; keyPos[n] = x;
+                if(!isB) curX += (WHITE_W + GAP);
+            }
+            keysEl.setAttribute('position', `${-(curX/2)} 0 0`);
+        }
+
+        function selectScale(key) {
+            const notes = SCALE_LIB[key];
+            scaleNotes = [...notes, ...[...notes].reverse().slice(1)].map((n, i) => ({
+                note: n, time: i * (60000 / currentBPM), claimed: false
+            }));
+            console.log("Scale Selected:", key);
+        }
+
+        function startSession(scoringMode) {
+            if (scaleNotes.length === 0) return;
+            stopAll();
+            isScoring = scoringMode;
+            gameStart = performance.now() + 2000;
+            const msPerBeat = 60000 / currentBPM;
+
+            scaleNotes.forEach((ev, i) => {
+                const hitTime = gameStart + ev.time;
+                spawnRoll(ev.note, true, hitTime);
+                if (!isScoring) {
+                    const t = setTimeout(() => playPiano(ev.note), hitTime - performance.now());
+                    playbackTimers.push(t);
+                }
+            });
+        }
+
+        function spawnRoll(note, isPlayback, targetTime) {
+            const b = document.createElement('a-box');
+            const isB = [1,3,6,8,10].includes(note%12);
+            b.setAttribute('width', isB ? 0.03 : 0.05);
+            b.setAttribute('depth', 0.1);
+            b.setAttribute('height', 0.5);
+            const color = isPlayback ? '#FFD700' : '#00f0ff';
+            b.setAttribute('color', color);
+            b.setAttribute('material', 'emissive', color);
+            
+            const x = keyPos[note] + document.getElementById('keys').object3D.position.x;
+            b.setAttribute('position', `${x} ${isPlayback ? 10 : 0} 0`);
+            document.getElementById('rolls').appendChild(b);
+            activeRolls.push({ note, el: b, isPlayback, hitTime: targetTime / 1000, x: x });
+        }
+
+        function playPiano(note) {
+            const f = 440 * Math.pow(2, (note - 69) / 12);
+            const o = audioCtx.createOscillator();
+            const g = audioCtx.createGain();
+            o.frequency.value = f;
+            g.gain.setValueAtTime(0.1, audioCtx.currentTime);
+            g.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.5);
+            o.connect(g); g.connect(audioCtx.destination);
+            o.start(); o.stop(audioCtx.currentTime + 0.5);
+        }
+
+        function tick() {
+            const now = performance.now() / 1000;
+            activeRolls.forEach(obj => {
+                let y = obj.isPlayback ? (obj.hitTime - now) * FALL_SPEED : (now - obj.hitTime) * FALL_SPEED;
+                obj.el.object3D.position.set(obj.x, y + 0.2, 0);
+            });
+            activeRolls = activeRolls.filter(o => {
+                if (now - o.hitTime > 2.0) { o.el.remove(); return false; }
+                return true;
+            });
+            requestAnimationFrame(tick);
+        }
+
+        function stopAll() {
+            playbackTimers.forEach(clearTimeout);
+            playbackTimers = [];
+            activeRolls.forEach(o => o.el.remove());
+            activeRolls = [];
+        }
+
+        // Auto-initialize when scene loads
+        window.onload = () => {
+            buildKeys();
+            tick();
+            // Start MIDI listeners
+            navigator.requestMIDIAccess().then(access => {
+                access.inputs.forEach(input => {
+                    input.onmidimessage = (m) => {
+                        const [s, n, v] = m.data;
+                        if ((s & 0xf0) === 0x90 && v > 0) {
+                            playPiano(n);
+                            spawnRoll(n, false, performance.now());
+                        }
+                    };
+                });
+            });
+        };
+    </script>
 </body>
 </html>
