@@ -2,89 +2,81 @@
 <html>
 <head>
     <meta charset="utf-8">
-    <title>Piano Virtuoso - Dual UI Edition</title>
+    <title>Virtuoso VR - Full Calibration</title>
     <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
     <script src="https://unpkg.com/aframe-event-set-component@5.0.0/dist/aframe-event-set-component.min.js"></script>
     <style>
-        /* Desktop UI Styling */
-        body { margin: 0; overflow: hidden; background: #000; font-family: 'Segoe UI', sans-serif; }
-        #desktop-hud { position: fixed; top: 20px; left: 20px; z-index: 999; pointer-events: none; }
-        .ui-panel { 
-            background: rgba(0, 0, 0, 0.8); padding: 15px; border-radius: 10px; 
-            border: 1px solid #39FF14; pointer-events: auto; display: flex; flex-direction: column; gap: 8px; width: 220px;
+        body { margin: 0; overflow: hidden; background: #000; font-family: sans-serif; }
+        #desktop-controls { 
+            position: absolute; top: 10px; left: 10px; z-index: 10; 
+            background: rgba(0,0,0,0.8); padding: 10px; border: 1px solid #39FF14;
+            color: white; pointer-events: auto; display: flex; flex-direction: column; gap: 5px;
         }
-        button { 
-            padding: 10px; cursor: pointer; background: #222; color: white; 
-            border: 1px solid #444; border-radius: 5px; font-weight: bold; 
-        }
-        button:hover { background: #333; border-color: #39FF14; }
-        .label { color: #39FF14; font-size: 10px; text-transform: uppercase; letter-spacing: 1px; }
+        button { cursor: pointer; padding: 8px; background: #222; color: #39FF14; border: 1px solid #39FF14; }
     </style>
 </head>
 <body>
 
-    <div id="desktop-hud">
-        <div class="ui-panel">
-            <div class="label">Scale Selection</div>
-            <button onclick="selectScale('cMajor')">C Major</button>
-            <button onclick="selectScale('gMajor')">G Major</button>
-            <button onclick="selectScale('dMajor')">D Major</button>
-            
-            <div class="label" style="margin-top:10px;">Execution</div>
-            <button onclick="startSession(false)" style="color:#39FF14;">▶ Listen</button>
-            <button onclick="startSession(true)" style="background:#1a4a1a;">🎯 Score Mode</button>
-            <button onclick="stopAll()" style="color:#ff4444;">Stop</button>
-        </div>
+    <div id="desktop-controls">
+        <b style="color:#39FF14">PIANO CONTROLS</b>
+        <button onclick="selectScale('cMajor')">C Major</button>
+        <button onclick="startSession(true)">Start Scoring</button>
+        <button onclick="stopAll()">Stop</button>
     </div>
 
-    <a-scene background="color: #050510" xr-mode-ui="enabled: true">
+    <a-scene background="color: #020205" xr-mode-ui="enabled: true">
         
         <a-assets>
             <a-mixin id="vr-btn" 
-                     geometry="primitive: plane; width: 0.5; height: 0.18" 
-                     material="color: #222; shader: flat"
+                     geometry="primitive: plane; width: 0.4; height: 0.15" 
+                     material="color: #111; shader: flat"
                      event-set__mouseenter="material.color: #39FF14"
-                     event-set__mouseleave="material.color: #222"
-                     text="align: center; width: 2; color: white"></a-mixin>
+                     event-set__mouseleave="material.color: #111"
+                     text="align: center; width: 1.8; color: white"></a-mixin>
+            
+            <a-mixin id="axis-btn" 
+                     geometry="primitive: plane; width: 0.15; height: 0.15" 
+                     material="color: #333; shader: flat"
+                     text="align: center; width: 3; color: #39FF14"></a-mixin>
         </a-assets>
 
         <a-entity laser-controls="hand: left" raycaster="objects: .clickable; far: 5"></a-entity>
         <a-entity laser-controls="hand: right" raycaster="objects: .clickable; far: 5"></a-entity>
 
-        <a-entity id="vr-menu" position="0 1.8 -1.5" rotation="15 0 0">
-            <a-text value="VR CONTROL PANEL" position="0 0.45 0" align="center" width="3" color="#39FF14"></a-text>
+        <a-entity id="vr-ui-panel" position="0 1.6 -1.2" rotation="10 0 0">
+            <a-text value="SCALE SETTINGS" position="0 0.5 0" align="center" color="#39FF14"></a-text>
             
-            <a-entity class="clickable" mixin="vr-btn" position="-0.55 0.15 0" text="value: C MAJOR" onclick="selectScale('cMajor')"></a-entity>
-            <a-entity class="clickable" mixin="vr-btn" position="0 0.15 0" text="value: G MAJOR" onclick="selectScale('gMajor')"></a-entity>
-            <a-entity class="clickable" mixin="vr-btn" position="0.55 0.15 0" text="value: D MAJOR" onclick="selectScale('dMajor')"></a-entity>
+            <a-entity class="clickable" mixin="vr-btn" position="-0.45 0.3 0" text="value: C MAJOR" onclick="selectScale('cMajor')"></a-entity>
+            <a-entity class="clickable" mixin="vr-btn" position="0 0.3 0" text="value: G MAJOR" onclick="selectScale('gMajor')"></a-entity>
+            <a-entity class="clickable" mixin="vr-btn" position="0.45 0.3 0" text="value: D MAJOR" onclick="selectScale('dMajor')"></a-entity>
 
-            <a-entity class="clickable" mixin="vr-btn" position="-0.3 -0.1 0" text="value: LISTEN" onclick="startSession(false)"></a-entity>
-            <a-entity class="clickable" mixin="vr-btn" position="0.3 -0.1 0" material="color: #1a4a1a" text="value: SCORE" onclick="startSession(true)"></a-entity>
+            <a-text value="ALIGN KEYBOARD (X / Y / Z)" position="0 0.05 0" align="center" width="2" color="#aaa"></a-text>
+            
+            <a-entity class="clickable" mixin="axis-btn" position="-0.2 -0.1 0" text="value: < X" onclick="movePiano('x', -0.05)"></a-entity>
+            <a-entity class="clickable" mixin="axis-btn" position="0.2 -0.1 0" text="value: X >" onclick="movePiano('x', 0.05)"></a-entity>
 
-            <a-text value="PIANO HEIGHT" position="0 -0.35 0" align="center" width="2" color="#aaa"></a-text>
-            <a-entity class="clickable" mixin="vr-btn" position="-0.3 -0.5 0" geometry="width: 0.2" text="value: -" onclick="adjustHeight(-0.05)"></a-entity>
-            <a-entity class="clickable" mixin="vr-btn" position="0.3 -0.5 0" geometry="width: 0.2" text="value: +" onclick="adjustHeight(0.05)"></a-entity>
+            <a-entity class="clickable" mixin="axis-btn" position="-0.2 -0.28 0" text="value: v Y" onclick="movePiano('y', -0.05)"></a-entity>
+            <a-entity class="clickable" mixin="axis-btn" position="0.2 -0.28 0" text="value: ^ Y" onclick="movePiano('y', 0.05)"></a-entity>
 
-            <a-entity class="clickable" mixin="vr-btn" position="0 -0.8 0" material="color: #500" text="value: STOP" onclick="stopAll()"></a-entity>
+            <a-entity class="clickable" mixin="axis-btn" position="-0.2 -0.46 0" text="value: v Z" onclick="movePiano('z', -0.05)"></a-entity>
+            <a-entity class="clickable" mixin="axis-btn" position="0.2 -0.46 0" text="value: ^ Z" onclick="movePiano('z', 0.05)"></a-entity>
+
+            <a-entity class="clickable" mixin="vr-btn" position="0 -0.7 0" material="color: #400" text="value: STOP ALL" onclick="stopAll()"></a-entity>
         </a-entity>
 
-        <a-entity id="piano-rig" position="0 0.5 -1.8">
+        <a-entity id="piano-rig" position="0 0.6 -1.5">
             <a-entity id="rolls"></a-entity>
             <a-entity id="keys"></a-entity>
         </a-entity>
 
-        <a-camera position="0 1.6 0.5" wasd-controls-enabled="false" look-controls="enabled: true"></a-camera>
-        <a-light type="ambient" intensity="0.8"></a-light>
+        <a-camera position="0 1.6 0"></a-camera>
     </a-scene>
 
     <script>
         const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-        const FALL_SPEED = 4.0; 
-        const HIT_WINDOW = 200; 
-
-        let keyMap = {}, keyPos = {}, activeRolls = [], scaleNotes = [];
-        let playbackTimers = [], isScoring = false;
-        let gameStart = 0, currentBPM = 90;
+        const FALL_SPEED = 3.0; 
+        let keyMap = {}, keyPos = {}, activeRolls = [], scaleNotes = [], playbackTimers = [];
+        let currentBPM = 90;
 
         const SCALE_LIB = {
             cMajor: [60,62,64,65,67,69,71,72,74,76,77,79,81,83,84],
@@ -94,101 +86,92 @@
 
         function buildKeys() {
             let curX = 0;
-            const keysEl = document.getElementById('keys');
-            const WHITE_W = 0.085, BLACK_W = 0.05, GAP = 0.005;
-
+            const WHITE_W = 0.08, BLACK_W = 0.045, GAP = 0.005;
             for(let n=21; n<=108; n++) {
                 const isB = [1,3,6,8,10].includes(n%12);
                 const k = document.createElement('a-box');
                 let x = isB ? curX - (WHITE_W/2 + GAP/2) : curX;
                 k.setAttribute('width', isB ? BLACK_W : WHITE_W);
-                k.setAttribute('height', 0.1);
-                k.setAttribute('depth', isB ? 0.4 : 0.75);
+                k.setAttribute('height', isB ? 0.12 : 0.08);
+                k.setAttribute('depth', isB ? 0.4 : 0.7);
                 k.setAttribute('color', isB ? '#111' : '#fff');
-                k.setAttribute('position', `${x} ${isB ? 0.06 : 0} ${isB ? -0.15 : 0}`);
-                keysEl.appendChild(k);
+                k.setAttribute('position', `${x} 0 ${isB ? -0.15 : 0}`);
+                document.getElementById('keys').appendChild(k);
                 keyMap[n] = k; keyPos[n] = x;
                 if(!isB) curX += (WHITE_W + GAP);
             }
-            keysEl.setAttribute('position', `${-(curX/2)} 0 0`);
+            document.getElementById('keys').setAttribute('position', `${-(curX/2)} 0 0`);
         }
 
-        // --- NEW: VR Height Adjustment ---
-        function adjustHeight(delta) {
+        // --- NEW CALIBRATION LOGIC ---
+        function movePiano(axis, amount) {
             const rig = document.getElementById('piano-rig');
             let pos = rig.getAttribute('position');
-            pos.y += delta;
+            pos[axis] += amount;
             rig.setAttribute('position', pos);
+        }
+
+        function spawnRoll(note, isPlayback, targetTime) {
+            const b = document.createElement('a-box');
+            b.setAttribute('width', 0.04);
+            b.setAttribute('depth', 0.08);
+            b.setAttribute('height', 0.4);
+            // Use shader:flat for VR visibility
+            const color = isPlayback ? '#FFD700' : '#00f0ff';
+            b.setAttribute('material', `shader: flat; color: ${color}`);
+            
+            const x = keyPos[note] + document.getElementById('keys').object3D.position.x;
+            b.setAttribute('position', `${x} ${isPlayback ? 8 : 0} 0`);
+            document.getElementById('rolls').appendChild(b);
+            activeRolls.push({ el: b, isPlayback, hitTime: targetTime / 1000, x });
+        }
+
+        function playNote(note) {
+            // Light up the key
+            if(keyMap[note]) {
+                const originalColor = [1,3,6,8,10].includes(note%12) ? '#111' : '#fff';
+                keyMap[note].setAttribute('color', '#00f0ff');
+                setTimeout(() => keyMap[note].setAttribute('color', originalColor), 200);
+            }
+            // Simple sound
+            const o = audioCtx.createOscillator();
+            const g = audioCtx.createGain();
+            o.frequency.value = 440 * Math.pow(2, (note - 69) / 12);
+            g.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.5);
+            o.connect(g); g.connect(audioCtx.destination);
+            o.start(); o.stop(audioCtx.currentTime + 0.5);
         }
 
         function selectScale(key) {
             const notes = SCALE_LIB[key];
             scaleNotes = [...notes, ...[...notes].reverse().slice(1)].map((n, i) => ({
-                note: n, time: i * (60000 / currentBPM), claimed: false
+                note: n, time: i * (60000 / currentBPM)
             }));
-            console.log("Active Scale Set to:", key);
         }
 
-        function startSession(scoringMode) {
-            if (scaleNotes.length === 0) return alert("Select a scale first!");
+        function startSession(scoring) {
             stopAll();
-            isScoring = scoringMode;
-            gameStart = performance.now() + 2000;
-            const msPerBeat = 60000 / currentBPM;
-
-            scaleNotes.forEach((ev, i) => {
+            const gameStart = performance.now() + 2000;
+            scaleNotes.forEach(ev => {
                 const hitTime = gameStart + ev.time;
                 spawnRoll(ev.note, true, hitTime);
-                if (!isScoring) {
-                    const t = setTimeout(() => playPiano(ev.note), hitTime - performance.now());
-                    playbackTimers.push(t);
-                }
             });
-        }
-
-        function spawnRoll(note, isPlayback, targetTime) {
-            const b = document.createElement('a-box');
-            const isB = [1,3,6,8,10].includes(note%12);
-            b.setAttribute('width', isB ? 0.03 : 0.05);
-            b.setAttribute('depth', 0.1);
-            b.setAttribute('height', 0.5);
-            const color = isPlayback ? '#FFD700' : '#00f0ff';
-            b.setAttribute('color', color);
-            b.setAttribute('material', 'emissive', color);
-            
-            const x = keyPos[note] + document.getElementById('keys').object3D.position.x;
-            b.setAttribute('position', `${x} ${isPlayback ? 10 : 0} 0`);
-            document.getElementById('rolls').appendChild(b);
-            activeRolls.push({ note, el: b, isPlayback, hitTime: targetTime / 1000, x: x });
-        }
-
-        function playPiano(note) {
-            const f = 440 * Math.pow(2, (note - 69) / 12);
-            const o = audioCtx.createOscillator();
-            const g = audioCtx.createGain();
-            o.frequency.value = f;
-            g.gain.setValueAtTime(0.1, audioCtx.currentTime);
-            g.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.5);
-            o.connect(g); g.connect(audioCtx.destination);
-            o.start(); o.stop(audioCtx.currentTime + 0.5);
         }
 
         function tick() {
             const now = performance.now() / 1000;
             activeRolls.forEach(obj => {
                 let y = obj.isPlayback ? (obj.hitTime - now) * FALL_SPEED : (now - obj.hitTime) * FALL_SPEED;
-                obj.el.object3D.position.set(obj.x, y + 0.2, 0);
+                obj.el.object3D.position.set(obj.x, y, 0);
             });
             activeRolls = activeRolls.filter(o => {
-                if (now - o.hitTime > 2.0) { o.el.remove(); return false; }
+                if (Math.abs(now - o.hitTime) > 4) { o.el.remove(); return false; }
                 return true;
             });
             requestAnimationFrame(tick);
         }
 
         function stopAll() {
-            playbackTimers.forEach(clearTimeout);
-            playbackTimers = [];
             activeRolls.forEach(o => o.el.remove());
             activeRolls = [];
         }
@@ -201,7 +184,7 @@
                     input.onmidimessage = (m) => {
                         const [s, n, v] = m.data;
                         if ((s & 0xf0) === 0x90 && v > 0) {
-                            playPiano(n);
+                            playNote(n);
                             spawnRoll(n, false, performance.now());
                         }
                     };
