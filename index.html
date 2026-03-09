@@ -2,41 +2,70 @@
 <html>
 <head>
     <meta charset="utf-8">
-    <title>Piano Virtuoso VR - Controller Edition</title>
+    <title>Piano Virtuoso - Dual UI Edition</title>
     <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
     <script src="https://unpkg.com/aframe-event-set-component@5.0.0/dist/aframe-event-set-component.min.js"></script>
+    <style>
+        /* Desktop UI Styling */
+        body { margin: 0; overflow: hidden; background: #000; font-family: 'Segoe UI', sans-serif; }
+        #desktop-hud { position: fixed; top: 20px; left: 20px; z-index: 999; pointer-events: none; }
+        .ui-panel { 
+            background: rgba(0, 0, 0, 0.8); padding: 15px; border-radius: 10px; 
+            border: 1px solid #39FF14; pointer-events: auto; display: flex; flex-direction: column; gap: 8px; width: 220px;
+        }
+        button { 
+            padding: 10px; cursor: pointer; background: #222; color: white; 
+            border: 1px solid #444; border-radius: 5px; font-weight: bold; 
+        }
+        button:hover { background: #333; border-color: #39FF14; }
+        .label { color: #39FF14; font-size: 10px; text-transform: uppercase; letter-spacing: 1px; }
+    </style>
 </head>
 <body>
+
+    <div id="desktop-hud">
+        <div class="ui-panel">
+            <div class="label">Scale Selection</div>
+            <button onclick="selectScale('cMajor')">C Major</button>
+            <button onclick="selectScale('gMajor')">G Major</button>
+            <button onclick="selectScale('dMajor')">D Major</button>
+            
+            <div class="label" style="margin-top:10px;">Execution</div>
+            <button onclick="startSession(false)" style="color:#39FF14;">▶ Listen</button>
+            <button onclick="startSession(true)" style="background:#1a4a1a;">🎯 Score Mode</button>
+            <button onclick="stopAll()" style="color:#ff4444;">Stop</button>
+        </div>
+    </div>
 
     <a-scene background="color: #050510" xr-mode-ui="enabled: true">
         
         <a-assets>
-            <a-mixin id="vr-button" 
-                     geometry="primitive: plane; width: 0.5; height: 0.2" 
+            <a-mixin id="vr-btn" 
+                     geometry="primitive: plane; width: 0.5; height: 0.18" 
                      material="color: #222; shader: flat"
                      event-set__mouseenter="material.color: #39FF14"
                      event-set__mouseleave="material.color: #222"
                      text="align: center; width: 2; color: white"></a-mixin>
         </a-assets>
 
-        <a-entity id="leftHand" laser-controls="hand: left" raycaster="objects: .clickable; far: 5"></a-entity>
-        <a-entity id="rightHand" laser-controls="hand: right" raycaster="objects: .clickable; far: 5"></a-entity>
+        <a-entity laser-controls="hand: left" raycaster="objects: .clickable; far: 5"></a-entity>
+        <a-entity laser-controls="hand: right" raycaster="objects: .clickable; far: 5"></a-entity>
 
-        <a-entity id="menu-ui" position="0 1.8 -1.2" rotation="10 0 0">
-            <a-text value="SCALE COMMAND CENTER" position="0 0.4 0" align="center" width="3" color="#39FF14"></a-text>
+        <a-entity id="vr-menu" position="0 1.8 -1.5" rotation="15 0 0">
+            <a-text value="VR CONTROL PANEL" position="0 0.45 0" align="center" width="3" color="#39FF14"></a-text>
             
-            <a-entity id="btn-c" class="clickable" mixin="vr-button" position="-0.6 0.1 0" text="value: C MAJOR" onclick="selectScale('cMajor')"></a-entity>
-            <a-entity id="btn-g" class="clickable" mixin="vr-button" position="0 0.1 0" text="value: G MAJOR" onclick="selectScale('gMajor')"></a-entity>
-            <a-entity id="btn-d" class="clickable" mixin="vr-button" position="0.6 0.1 0" text="value: D MAJOR" onclick="selectScale('dMajor')"></a-entity>
+            <a-entity class="clickable" mixin="vr-btn" position="-0.55 0.15 0" text="value: C MAJOR" onclick="selectScale('cMajor')"></a-entity>
+            <a-entity class="clickable" mixin="vr-btn" position="0 0.15 0" text="value: G MAJOR" onclick="selectScale('gMajor')"></a-entity>
+            <a-entity class="clickable" mixin="vr-btn" position="0.55 0.15 0" text="value: D MAJOR" onclick="selectScale('dMajor')"></a-entity>
 
-            <a-entity id="btn-listen" class="clickable" mixin="vr-button" position="-0.3 -0.2 0" 
-                      material="color: #111" text="value: LISTEN" onclick="startSession(false)"></a-entity>
-            
-            <a-entity id="btn-score" class="clickable" mixin="vr-button" position="0.3 -0.2 0" 
-                      material="color: #1a4a1a" text="value: SCORE MODE" onclick="startSession(true)"></a-entity>
+            <a-entity class="clickable" mixin="vr-btn" position="-0.3 -0.1 0" text="value: LISTEN" onclick="startSession(false)"></a-entity>
+            <a-entity class="clickable" mixin="vr-btn" position="0.3 -0.1 0" material="color: #1a4a1a" text="value: SCORE" onclick="startSession(true)"></a-entity>
 
-            <a-entity id="btn-stop" class="clickable" mixin="vr-button" position="0 -0.5 0" 
-                      geometry="width: 1.1" material="color: #500" text="value: STOP ALL" onclick="stopAll()"></a-entity>
+            <a-text value="PIANO HEIGHT" position="0 -0.35 0" align="center" width="2" color="#aaa"></a-text>
+            <a-entity class="clickable" mixin="vr-btn" position="-0.3 -0.5 0" geometry="width: 0.2" text="value: -" onclick="adjustHeight(-0.05)"></a-entity>
+            <a-entity class="clickable" mixin="vr-btn" position="0.3 -0.5 0" geometry="width: 0.2" text="value: +" onclick="adjustHeight(0.05)"></a-entity>
+
+            <a-entity class="clickable" mixin="vr-btn" position="0 -0.8 0" material="color: #500" text="value: STOP" onclick="stopAll()"></a-entity>
         </a-entity>
 
         <a-entity id="piano-rig" position="0 0.5 -1.8">
@@ -44,7 +73,7 @@
             <a-entity id="keys"></a-entity>
         </a-entity>
 
-        <a-camera position="0 1.6 0.5" wasd-controls-enabled="false"></a-camera>
+        <a-camera position="0 1.6 0.5" wasd-controls-enabled="false" look-controls="enabled: true"></a-camera>
         <a-light type="ambient" intensity="0.8"></a-light>
     </a-scene>
 
@@ -84,16 +113,24 @@
             keysEl.setAttribute('position', `${-(curX/2)} 0 0`);
         }
 
+        // --- NEW: VR Height Adjustment ---
+        function adjustHeight(delta) {
+            const rig = document.getElementById('piano-rig');
+            let pos = rig.getAttribute('position');
+            pos.y += delta;
+            rig.setAttribute('position', pos);
+        }
+
         function selectScale(key) {
             const notes = SCALE_LIB[key];
             scaleNotes = [...notes, ...[...notes].reverse().slice(1)].map((n, i) => ({
                 note: n, time: i * (60000 / currentBPM), claimed: false
             }));
-            console.log("Scale Selected:", key);
+            console.log("Active Scale Set to:", key);
         }
 
         function startSession(scoringMode) {
-            if (scaleNotes.length === 0) return;
+            if (scaleNotes.length === 0) return alert("Select a scale first!");
             stopAll();
             isScoring = scoringMode;
             gameStart = performance.now() + 2000;
@@ -156,11 +193,9 @@
             activeRolls = [];
         }
 
-        // Auto-initialize when scene loads
         window.onload = () => {
             buildKeys();
             tick();
-            // Start MIDI listeners
             navigator.requestMIDIAccess().then(access => {
                 access.inputs.forEach(input => {
                     input.onmidimessage = (m) => {
